@@ -1,2 +1,3 @@
 # COLMAP_SLAM
-Visual-SLAM based on COLMAP API
+Visual-SLAM based on COLMAP API.
+
