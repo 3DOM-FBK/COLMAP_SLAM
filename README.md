@@ -1,5 +1,7 @@
 # COLMAP_SLAM
 
+https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/19dd1ab2-9a0d-4484-bc6f-9202c75a48d3
+
 Visual-SLAM based on COLMAP API mainly intended for the development and test of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository uses Kornia (https://github.com/kornia/kornia) for matching, and for now only Key.Net+HardNet8 is implemented. All local features made available by Kornia will be added shortly. Other interest points: RootSIFT from COLMAP, ORB from OpenCV, and ALIKE (https://github.com/Shiaoming/ALIKE).
 
 Currently only the monocular scenario is supported, but we are joining an other repository with other features (multi-cameras, GNSS, IMU). If interested in the project please contact us, you are free to join.
