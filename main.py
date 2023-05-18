@@ -11,6 +11,7 @@ import mpl_toolkits.mplot3d.axes3d as p3
 import plotly.graph_objs as go
 import numpy as np
 import piexif
+import pydegensac
 
 from pathlib import Path
 from easydict import EasyDict as edict
@@ -27,9 +28,12 @@ from lib.colmapAPI import ColmapAPI
 from lib.local_features import LocalFeatureExtractor, LocalFeatConfFile
 from lib import (
     ExtractCustomFeatures,
+    import_local_features,
+    matcher,
     database,
     export_cameras,
     utils,
+    db_colmap,
 )
 
 
@@ -128,8 +132,10 @@ one_time = False  # It becomes true after the first batch of images is oriented
 # The first batch of images define the reference system.
 # At following epochs the photogrammetric model will be reported in this ref system.
 reference_imgs = []
+adjacency_matrix = None
 SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
-MAX_SEQUENTIAL_OVERLAP = 15
+MAX_SEQUENTIAL_OVERLAP = 50
+MIN_MATCHES = 50
 
 # Setup keyframe selector
 kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
@@ -144,7 +150,11 @@ keyframe_selector = KeyFrameSelector(
     local_feature_cfg=kf_selection_detecor_config,
     n_features=cfg.KFS_N_FEATURES,
     realtime_viz=True,
-    viz_res_path=None,
+    viz_res_path='./frames', # None
+    innovation_threshold_pix=cfg.INNOVATION_THRESH_PIX,
+    min_matches=cfg.MIN_MATCHES,
+    error_threshold=cfg.RANSAC_THRESHOLD,
+    iterations=cfg.RANSAC_ITERATIONS,
 )
 
 # Setup local feature to use on keyframes
@@ -182,7 +192,6 @@ if cfg.PLOT_TRJECTORY:
 colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 
 
-
 # MAIN LOOP
 timer_global = utils.AverageTimer(logger=logger)
 while True:
@@ -200,7 +209,7 @@ while True:
         # Make exit condition when using server
         pass
 
-    img_batch = []
+    kfm_batch = []
 
     newer_imgs = False  # To control that new keyframes are added
     processed = 0  # Number of processed images
@@ -260,7 +269,7 @@ while True:
             new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH))
             if new_n_keyframes - old_n_keyframes > 0:
                 newer_imgs = True
-                img_batch.append(img)
+                kfm_batch.append(img)
                 keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
 
                 ## Load exif data and store GNSS position if present
@@ -322,18 +331,91 @@ while True:
         elif cfg.LOCAL_FEAT_LOCAL_FEATURE == 'RootSIFT':
             colmap.ExtractRootSiftFeatures(database_path=cfg.DATABASE, path_to_images=cfg.KF_DIR_BATCH, first_loop=first_colmap_loop, max_n_features=cfg.LOCAL_FEAT_N_FEATURES)
         timer.update("FEATURE EXTRACTION")
+        
 
         logger.info('Sequential matcher')
+
         if cfg.LOOP_CLOSURE_DETECTION == False:
-            colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='0', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree='')
-        elif cfg.LOOP_CLOSURE_DETECTION == True and cfg.CUSTOM_FEATURES == False:
+            if first_colmap_loop == True:
+                old_adjacency_matrix_shape = 0
+            elif first_colmap_loop == False:
+                old_adjacency_matrix_shape = adjacency_matrix.shape[0]
+
+            adjacency_matrix = matcher.UpdateAdjacencyMatrix(
+                adjacency_matrix,
+                os.listdir(cfg.KF_DIR_BATCH),
+                SEQUENTIAL_OVERLAP,
+                first_colmap_loop,
+                )
+
+            #matcher.PlotAdjacencyMatrix(adjacency_matrix)
+            keypoints, descriptors, images = import_local_features.ImportLocalFeature(cfg.DATABASE)
+            true_indices = np.where(adjacency_matrix)
+
+            for i, j in zip(true_indices[0], true_indices[1]):
+                if i > j and i > old_adjacency_matrix_shape-1:
+                    im1 = images[j+1]
+                    im2 = images[i+1]
+                    matches_matrix = matcher.Matcher(descriptors[j+1].astype(float), descriptors[i+1].astype(float), cfg.KORNIA_MATCHER, cfg.RATIO_THRESHOLD)
+
+                    if matches_matrix.shape[0] < MIN_MATCHES:
+                        continue
+
+                    db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
+                    db.add_matches(int(j+1), int(i+1), matches_matrix)
+
+                    pts1 = keypoints[j+1][matches_matrix[:,0],:2].reshape((-1,2))
+                    pts2 = keypoints[i+1][matches_matrix[:,1],:2].reshape((-1,2))
+
+                    if pts1.shape[0] > 8:
+                        if cfg.GEOMETRIC_VERIFICATION == 'ransac':
+                            F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_RANSAC, cfg.MAX_ERROR, cfg.CONFIDENCE, cfg.ITERATIONS)
+
+                        elif cfg.GEOMETRIC_VERIFICATION == 'pydegensac':
+                            F, mask = pydegensac.findFundamentalMatrix(
+                                pts1,
+                                pts2,
+                                px_th=cfg.MAX_ERROR,
+                                conf=cfg.CONFIDENCE,
+                                max_iters=cfg.ITERATIONS,
+                                laf_consistensy_coef=-1,
+                                error_type="sampson",
+                                symmetric_error_check=True,
+                                enable_degeneracy_check=True,
+                            )
+
+                        if mask.shape[0] > 8:
+                            try:
+                                if cfg.GEOMETRIC_VERIFICATION == 'pydegensac':
+                                    mask = mask
+                                elif cfg.GEOMETRIC_VERIFICATION == 'ransac':
+                                    mask = mask[:,0]
+                                verified_matches_matrix = matches_matrix[mask,:]
+                                db.add_two_view_geometry(int(j+1), int(i+1), verified_matches_matrix)
+                            except:
+                                logger.info('No valid geometry')
+
+                        elif mask.shape[0] <= 8:
+                            logger.info('N points < 8')
+
+                    db.commit()
+                    db.close()
+        
+        
+        #if cfg.LOOP_CLOSURE_DETECTION == False:
+        #    colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='0', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree='')
+
+        elif cfg.LOOP_CLOSURE_DETECTION == True and cfg.LOCAL_FEAT_LOCAL_FEATURE == 'RootSIFT':
             colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='1', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree=cfg.VOCAB_TREE)
+
         else:
-            print("Not compatible option for loop closure detection. Quit.")
+            logger.info("Not compatible option for loop closure detection. Currently only RootSIFT is supported for loop-closure detection. Quit.")
             quit()
+
         timer.update("SEQUENTIAL MATCHER")
 
-        print('MAPPER')
+
+        logger.info('MAPPER')
         colmap.Mapper(database_path=cfg.DATABASE, path_to_images=cfg.KF_DIR_BATCH, input_path=cfg.OUT_DIR_BATCH, output_path=cfg.OUT_DIR_BATCH, first_loop=first_colmap_loop)
         timer.update("MAPPER")
 
@@ -351,6 +433,7 @@ while True:
             ],
             stdout=subprocess.DEVNULL,
         )
+
         timer.update("MODEL CONVERSION")
         timer.print("COLMAP")
 
@@ -363,8 +446,8 @@ while True:
                 for line in lines:
                     file.write(line)
 
-        # Keep track of sucessfully oriented frames in the current img_batch
-        for image in img_batch:
+        # Keep track of sucessfully oriented frames in the current kfm_batch
+        for image in kfm_batch:
             keyframe_obj = keyframes_list.get_keyframe_by_image_name(image)
             if keyframe_obj.keyframe_id in list(oriented_dict.keys()):
                 oriented_imgs_batch.append(image)
@@ -397,10 +480,9 @@ while True:
         ori_ratio = oriented_kfs_len / total_kfs_number
 
 
-        print(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
+        logger.info(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
 
         # Report SLAM solution in the reference system of the first image
-        #if first_colmap_loop == True:
         ref_img_id = oriented_dict_list[0]
         keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
         keyframe_obj.slamX = 0.0
@@ -410,7 +492,6 @@ while True:
         t0 = t0.reshape((3,1))
         q0_quat = Quaternion(q0)
 
-        #else:
         for keyframe_id in oriented_dict_list:
             keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
             if keyframe_id == ref_img_id:
@@ -426,15 +507,34 @@ while True:
 
         with open("./keyframes.pkl", "wb") as f:
             pickle.dump(keyframes_list, f)
+        
+        # Report 3D points in ref system of the first image
+        with open(f'{cfg.OUT_DIR_BATCH}/points3D.txt', 'r') as file:
+            lines = file.readlines()
+        
+        data = []
+        for line in lines:
+            if line.startswith('#') or line.strip() == '':
+                continue
+            values = line.split()
+            x = float(values[1])
+            y = float(values[2])
+            z = float(values[3])
+            p = np.array([[x], [y], [z]])
+            p_trans = np.dot(q0_quat.rotation_matrix, p) + t0
+            data.append([p_trans[0,0], p_trans[1,0], p_trans[2,0]])
+        
+        with open("./points3D.pkl", "wb") as f:
+            pickle.dump(np.array(data), f)
 
-        img_batch = []
+        kfm_batch = []
         oriented_imgs_batch = []
         first_colmap_loop = False
 
         # REINITIALIZE SLAM
         if ori_ratio < cfg.MIN_ORIENTED_RATIO or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS:
-            print(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
-            print('Not enough oriented images')
+            logger.info(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
+            logger.info('Not enough oriented images')
 
             cfg = init.new_batch_solution()
             first_colmap_loop = True
@@ -469,7 +569,7 @@ while True:
                 local_feature_cfg=kf_selection_detecor_config,
                 n_features=cfg.KFS_N_FEATURES,
                 realtime_viz=True,
-                viz_res_path=None,
+                viz_res_path='./frames',
             )
             
             continue
@@ -484,4 +584,4 @@ timer_global.print("Timer global")
 logging.info(f"Average loop time: {average_loop_time:.4f} s")
 logging.info(f"Total time: {total_time:.4f} s")
 
-print("Done.")
+logger.info("Done.")

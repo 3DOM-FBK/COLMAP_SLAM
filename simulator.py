@@ -40,7 +40,7 @@ input_dir = config["DEFAULT"]["SIMULATOR_IMG_DIR"]
 output_dir = config["DEFAULT"]["IMGS_FROM_SERVER"]
 ext = config["DEFAULT"]["IMG_FORMAT"]
 step = int(config["DEFAULT"]["STEP"])
-sleep = float(config["DEFAULT"]["SLEEP_TIME"])
+sleep = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
 equalize = config["DEFAULT"].getboolean("EQUALIZE")
 
 imgs = sorted(Path(input_dir).glob("*"))

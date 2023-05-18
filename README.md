@@ -1,6 +1,10 @@
 # COLMAP_SLAM
 
-SLAM based on COLMAP API for both Windows and Linux OS. The repository is under construction, if interested in the project you are free to join. Please note the repository is an adaptation of COLMAP to work in real-time. For code and license please refer to: <https://github.com/colmap/colmap>.
+Visual-SLAM based on COLMAP API mainly intended for the development and test of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository uses Kornia (https://github.com/kornia/kornia) for matching, and for now only Key.Net+HardNet8 is implemented. All local features made available by Kornia will be added shortly. Other interest points: RootSIFT from COLMAP, ORB from OpenCV, and ALIKE (https://github.com/Shiaoming/ALIKE).
+
+Currently only the monocular scenario is supported, but we are joining an other repository with other features (multi-cameras, GNSS, IMU). If interested in the project please contact us, you are free to join.
+
+Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to: <https://github.com/colmap/colmap>.
 
 ## EuRoC
 
@@ -32,13 +36,20 @@ python3 main.py
 ### TODO
 
 - [x] Add full compatibility to Kornia local features
-- [ ] Add kornia matcher (use lib/import_local_features.py)
-- [ ] Use always logger instead of print
-- [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
+- [x] Add brute-force kornia matcher
+- [ ] Add SuperGlue
+- [ ] From Kornia add Loftr, Adalam
 - [ ] Join multi camera code
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
+- [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
 
 ### Reference
 
+Code authors: Luca Morelli and Francesco Ioli.
+
 To be added.
+
+### Notes
+
+- In mapper.ini keep transitivity high.

@@ -201,7 +201,7 @@ class LocalFeatureExtractor:
 
                 one_matrix = np.ones((np.shape(kp)[0], 1))
                 kp = np.append(kp, one_matrix, axis=1)
-                zero_matrix = np.zeros((np.shape(kp)[0], 1))
+                zero_matrix = np.zeros((np.shape(kp)[0], 3))
                 kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
 
                 img_id = db.add_image(img, camera_id1)

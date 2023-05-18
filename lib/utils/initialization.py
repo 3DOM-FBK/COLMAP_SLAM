@@ -60,6 +60,7 @@ class Inizialization:
         cfg.LAUNCH_SERVER_PATH = Path(config["DEFAULT"]["LAUNCH_SERVER_PATH"])
         cfg.DEBUG = config["DEFAULT"].getboolean("DEBUG")
         cfg.MAX_IMG_BATCH_SIZE = int(config["DEFAULT"]["MAX_IMG_BATCH_SIZE"])
+        cfg.SIMULATOR_SLEEP_TIME = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
         cfg.SLEEP_TIME = float(config["DEFAULT"]["SLEEP_TIME"])
         cfg.LOOP_CYCLES = int(config["DEFAULT"]["LOOP_CYCLES"])
         cfg.COLMAP_EXE_DIR = Path(config["DEFAULT"]["COLMAP_EXE_DIR"])
@@ -79,6 +80,10 @@ class Inizialization:
         cfg.CAM0 = config["CALIBRATION"]["CAM0"]
 
         # KEYFRAME_SELECTION
+        cfg.INNOVATION_THRESH_PIX =int(config["KEYFRAME_SELECTION"]["INNOVATION_THRESH_PIX"])
+        cfg.MIN_MATCHES =int(config["KEYFRAME_SELECTION"]["MIN_MATCHES"])
+        cfg.RANSAC_THRESHOLD =int(config["KEYFRAME_SELECTION"]["ERROR_THRESHOLD"])
+        cfg.RANSAC_ITERATIONS =int(config["KEYFRAME_SELECTION"]["MAX_ITERATIONS"])
         cfg.KFS_METHOD = config["KEYFRAME_SELECTION"]["METHOD"]
         cfg.KFS_LOCAL_FEATURE = config["KEYFRAME_SELECTION"]["LOCAL_FEATURE"]
         cfg.KFS_N_FEATURES = int(config["KEYFRAME_SELECTION"]["N_FEATURES"])
@@ -118,6 +123,12 @@ class Inizialization:
         cfg.LOCAL_FEAT_ORB_FAST_THRESHOLD = int(config["LOCAL_FEATURES"]["ORB_FAST_THRESHOLD"])
 
         # MATCHING
+        cfg.KORNIA_MATCHER = config["MATCHING"]["KORNIA_MATCHER"]
+        cfg.RATIO_THRESHOLD = float(config["MATCHING"]["RATIO_THRESHOLD"])
+        cfg.GEOMETRIC_VERIFICATION = config["MATCHING"]["GEOMETRIC_VERIFICATION"]
+        cfg.MAX_ERROR = float(config["MATCHING"]["MAX_ERROR"])
+        cfg.CONFIDENCE = float(config["MATCHING"]["CONFIDENCE"])
+        cfg.ITERATIONS = int(config["MATCHING"]["ITERATIONS"])
         cfg.LOOP_CLOSURE_DETECTION = config["MATCHING"].getboolean("LOOP_CLOSURE_DETECTION")
         cfg.VOCAB_TREE = config["MATCHING"]["VOCAB_TREE"]
 
@@ -180,6 +191,9 @@ class Inizialization:
 
         if os.path.exists("./keyframes.pkl"):
             os.remove("./keyframes.pkl")
+
+        if os.path.exists("./points3D.pkl"):
+            os.remove("./points3D.pkl")
 
         return True
     

@@ -13,15 +13,12 @@ import numpy as np
 from easydict import EasyDict as edict
 
 from lib import utils
+from lib.utils.plot import make_traj_plot
 from lib.keyframes import KeyFrame, KeyFrameList
 from lib.local_features import LocalFeatures
 from lib.matching import Matcher, make_match_plot
 from lib.thirdparty.alike.alike import ALike, configs
 
-INNOVATION_THRESH_PIX = 5  # 80 # Underground funziona con 5
-MIN_MATCHES = 5
-RANSAC_THRESHOLD = 10
-RANSAC_ITERATIONS = 1000
 
 # TODO: use logger instead of print
 logger = logging.getLogger(__name__)
@@ -29,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 # TODO: make ransac function independent from KeyFrameSelector class
 def ransac(
-    kpts1: np.ndarray, kpts2: np.ndarray, threshold: float = RANSAC_THRESHOLD
+    kpts1: np.ndarray, kpts2: np.ndarray, threshold: float = 4
 ) -> np.ndarray:
     pass
 
@@ -51,6 +48,11 @@ class KeyFrameSelector:
         realtime_viz: bool = False,
         viz_res_path: Union[str, Path] = None,
         verbose: bool = False,
+        innovation_threshold_pix: int = 5,
+        min_matches: int = 5,
+        error_threshold: int = 4,
+        iterations: int = 1000,
+
     ) -> None:
         """
         __init__ _summary_
@@ -79,6 +81,10 @@ class KeyFrameSelector:
         self.n_features = n_features
         self.matcher = kfs_matcher
         self.geometric_verification = geometric_verification
+        self.innovation_threshold_pix=innovation_threshold_pix
+        self.min_matches=min_matches
+        self.error_threshold=error_threshold
+        self.iterations=iterations
 
         self.realtime_viz = realtime_viz
         if self.realtime_viz:
@@ -205,9 +211,9 @@ class KeyFrameSelector:
                 F, mask = pydegensac.findFundamentalMatrix(
                     self.mpts1,
                     self.mpts2,
-                    px_th=3,
+                    px_th=self.error_threshold,
                     conf=0.999,
-                    max_iters=RANSAC_ITERATIONS,
+                    max_iters=self.iterations,
                     laf_consistensy_coef=-1,
                     error_type="sampson",
                     symmetric_error_check=True,
@@ -222,11 +228,11 @@ class KeyFrameSelector:
             match_dist = np.linalg.norm(self.mpts1 - self.mpts2, axis=1)
             rands = []
             scores = []
-            for i in range(RANSAC_ITERATIONS):
+            for i in range(self.iterations):
                 rand = random.randrange(0, self.mpts1.shape[0])
                 reference_distance = np.linalg.norm(self.mpts1[rand] - self.mpts2[rand])
                 score = np.sum(
-                    np.absolute(match_dist - reference_distance) < RANSAC_THRESHOLD
+                    np.absolute(match_dist - reference_distance) < self.error_threshold
                 ) / len(match_dist)
                 rands.append(rand)
                 scores.append(score)
@@ -234,7 +240,7 @@ class KeyFrameSelector:
             reference_distance = np.linalg.norm(
                 self.mpts1[max_consensus] - self.mpts2[max_consensus]
             )
-            mask = np.absolute(match_dist - reference_distance) > RANSAC_THRESHOLD
+            mask = np.absolute(match_dist - reference_distance) > self.error_threshold
             logger.info(f"Ransac found {mask.sum()}/{len(mask)} inliers")
 
         else:
@@ -255,7 +261,7 @@ class KeyFrameSelector:
         self.median_match_dist = np.median(match_dist)
         logger.info(f"median_match_dist: {self.median_match_dist:.2f}")
 
-        if len(self.mpts1) < MIN_MATCHES:
+        if len(self.mpts1) < self.min_matches:
             logger.info("Frame rejected: not enogh matches")
             self.delta += 1
             if self.timer is not None:
@@ -263,7 +269,7 @@ class KeyFrameSelector:
 
             return False
 
-        if self.median_match_dist > INNOVATION_THRESH_PIX:
+        if self.median_match_dist > self.innovation_threshold_pix:
             existing_keyframe_number = len(os.listdir(self.keyframes_dir))
             shutil.copy(
                 self.img2,
@@ -316,18 +322,24 @@ class KeyFrameSelector:
         if self.viz_res_path is not None or self.realtime_viz:
             img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED)
             match_img = make_match_plot(img, self.mpts1, self.mpts2)
+            traj_img = make_traj_plot('./keyframes.pkl', './points3D.pkl', match_img.shape[1], match_img.shape[0])
             if keyframe_accepted:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Keyframe accepted"
             else:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Frame rejected"
-        if self.viz_res_path is not None:
-            out_name = f"{self.img1.stem}_{win_name}.jpg"
-            cv2.imwrite(str(self.viz_res_path / out_name), match_img)
+
         if self.realtime_viz:
             cv2.setWindowTitle("Keyframe Selection", win_name)
-            cv2.imshow("Keyframe Selection", match_img)
+            #cv2.imshow("Keyframe Selection", traj_img)
+            conc = np.concatenate((match_img, traj_img), axis=1)
+            cv2.imshow("Keyframe Selection", conc)
             if cv2.waitKey(1) == ord("q"):
                 sys.exit()
+
+        if self.viz_res_path is not None:
+            #out_name = f"{self.img1.stem}_{win_name}.jpg"
+            out_name = f"{self.img1.stem}.jpg"
+            cv2.imwrite(str(self.viz_res_path / out_name), conc)
 
         self.clear_matches()
 
