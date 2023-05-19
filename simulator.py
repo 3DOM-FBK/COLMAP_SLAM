@@ -1,20 +1,25 @@
+import configparser
+import logging
 import os
 import shutil
-import time
-import configparser
 import sys
-import logging
+import time
 from pathlib import Path
+
 from PIL import Image, ImageOps
 
 DEBUG = False
-END = 1000000 # max number of images to process
+END = 1000000  # max number of images to process
 
-def run_simulator(imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False):
+
+def run_simulator(
+    imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False
+):
     for i, img in enumerate(imgs):
-
         if i == END:
-            logging.info(f"Processed {END} images. Change the END variable in simulator.py to process more.")
+            logging.info(
+                f"Processed {END} images. Change the END variable in simulator.py to process more."
+            )
             quit()
 
         # Process only every STEP-th image
@@ -34,14 +39,15 @@ def run_simulator(imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equal
     logging.info("No more images available")
 
 
-config = configparser.ConfigParser()
-config.read("config.ini", encoding="utf-8")
-input_dir = config["DEFAULT"]["SIMULATOR_IMG_DIR"]
-output_dir = config["DEFAULT"]["IMGS_FROM_SERVER"]
-ext = config["DEFAULT"]["IMG_FORMAT"]
-step = int(config["DEFAULT"]["STEP"])
-sleep = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
-equalize = config["DEFAULT"].getboolean("EQUALIZE")
+if __name__ == "__main__":
+    config = configparser.ConfigParser()
+    config.read("config.ini", encoding="utf-8")
+    input_dir = config["DEFAULT"]["SIMULATOR_IMG_DIR"]
+    output_dir = config["DEFAULT"]["IMGS_FROM_SERVER"]
+    ext = config["DEFAULT"]["IMG_FORMAT"]
+    step = int(config["DEFAULT"]["STEP"])
+    sleep = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
+    equalize = config["DEFAULT"].getboolean("EQUALIZE")
 
-imgs = sorted(Path(input_dir).glob("*"))
-run_simulator(imgs, output_dir, ext, step, sleep, equalize)
+    imgs = sorted(Path(input_dir).glob("*"))
+    run_simulator(imgs, output_dir, ext, step, sleep, equalize)

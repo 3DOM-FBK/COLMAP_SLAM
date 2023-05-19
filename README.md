@@ -10,12 +10,19 @@ Note the repository is an adaptation of COLMAP to work in real-time, for code an
 
 ## EuRoC
 
-Download dataset from <https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets>
+Download a dataset from <https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets> and unzip it in the data folder.
 For instance, for Machine Hall 01 use only cam0.
+
+In linux:
+
+```bash
+wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P data
+unzip -q data/MH_01_easy.zip -d data/MH_01_easy
+```
 
 ### Install in Conda Environment
 
-To install a an Anaconda environment (Linux, Windows, MacOS)
+To install in an Anaconda environment (Linux, Windows, MacOS)
 
 ```bash
 conda create -n colmap_slam python=3.10
@@ -23,6 +30,7 @@ conda activate colmap_slam
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
 ### Remember to install pytorch
 
 See https://pytorch.org/get-started/locally/#linux-pip
