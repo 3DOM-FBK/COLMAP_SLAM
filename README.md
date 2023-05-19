@@ -50,7 +50,11 @@ python3 main.py
 
 Code authors: Luca Morelli and Francesco Ioli.
 
-To be added.
+Reference Article:
+COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
+
+Authors: 
+L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
 
 ### Notes
 
