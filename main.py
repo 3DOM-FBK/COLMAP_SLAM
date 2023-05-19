@@ -1,113 +1,28 @@
-import configparser
 import logging
 import os
 import pickle
 import shutil
 import subprocess
 import time
-import cv2
-import matplotlib.pyplot as plt
-import mpl_toolkits.mplot3d.axes3d as p3
-import plotly.graph_objs as go
-import numpy as np
-import piexif
-import pydegensac
 
-from pathlib import Path
-from easydict import EasyDict as edict
-from matplotlib import interactive
-from matplotlib.animation import FuncAnimation
-from mpl_toolkits import mplot3d
+import cv2
+import numpy as np
+import pydegensac
 from pyquaternion import Quaternion
-from scipy import linalg
-from scipy.spatial.transform import Rotation as R
-from plotly.subplots import make_subplots
-from lib.keyframe_selection import KeyFrameSelector, KeyFrameSelConfFile
-from lib.keyframes import KeyFrame, KeyFrameList
-from lib.colmapAPI import ColmapAPI
-from lib.local_features import LocalFeatureExtractor, LocalFeatConfFile
+
 from lib import (
     ExtractCustomFeatures,
+    database,
+    db_colmap,
+    export_cameras,
     import_local_features,
     matcher,
-    database,
-    export_cameras,
     utils,
-    db_colmap,
 )
-
-
-def colmap_process() -> bool:
-    pass
-
-
-def read_camera_eo(fname: str = "./keyframes.pkl") -> tuple:
-    if not os.path.exists(fname):
-        return
-
-    X = []
-    Y = []
-    Z = []
-    with open(fname, "rb") as f:
-        my_list = pickle.load(f)
-        for obj in my_list:
-            if obj.slamX != "-":
-                X.append(float(obj.slamX))
-            if obj.slamY != "-":
-                Y.append(float(obj.slamY))
-            if obj.slamZ != "-":
-                Z.append(float(obj.slamZ))
-
-    return X, Y, Z
-
-
-def create_plot():
-    global camera_pos_trace, camera_data_trace, fig
-    fig = make_subplots(rows=1, cols=1, specs=[[{"type": "scatter3d"}]])
-    fig.update_layout(
-        scene=dict(xaxis_title="X", yaxis_title="Y", zaxis_title="Z"),
-        title_text="Camera Trajectory",
-    )
-
-    # Add the camera position trace to the figure
-    camera_pos_trace = go.Scatter3d(
-        x=[0], y=[0], z=[0], mode="markers", marker=dict(size=10, color="red")
-    )
-    fig.add_trace(camera_pos_trace)
-
-    # Add the camera data trace to the figure
-    camera_data_trace = go.Scatter3d(
-        x=[0], y=[0], z=[0], mode="lines", line=dict(color="blue", width=2)
-    )
-    fig.add_trace(camera_data_trace)
-
-    # Set the plot limits and viewpoint
-    fig.update_layout(
-        scene_camera=dict(
-            up=dict(x=0, y=0, z=1),
-            center=dict(x=0, y=0, z=0),
-            eye=dict(x=1.25, y=1.25, z=1.25),
-        ),
-        scene_aspectmode="cube",
-    )
-
-
-def update_plot():
-    # Read the camera data
-    X, Y, Z = read_camera_eo("./keyframes.pkl")
-
-    # Update the camera position trace
-    camera_pos_trace.x = [X[-1]]
-    camera_pos_trace.y = [Y[-1]]
-    camera_pos_trace.z = [Z[-1]]
-
-    # Update the camera data trace
-    camera_data_trace.x = X
-    camera_data_trace.y = Y
-    camera_data_trace.z = Z
-
-    # Set the plot title
-    fig.update_layout(title_text=f"Camera Trajectory (n={len(X)})")
+from lib.colmapAPI import ColmapAPI
+from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
+from lib.keyframes import KeyFrame, KeyFrameList
+from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
 
 # Configuration file
 CFG_FILE = "config.ini"
@@ -150,7 +65,7 @@ keyframe_selector = KeyFrameSelector(
     local_feature_cfg=kf_selection_detecor_config,
     n_features=cfg.KFS_N_FEATURES,
     realtime_viz=True,
-    viz_res_path='./frames', # None
+    viz_res_path="./frames",  # None
     innovation_threshold_pix=cfg.INNOVATION_THRESH_PIX,
     min_matches=cfg.MIN_MATCHES,
     error_threshold=cfg.RANSAC_THRESHOLD,
@@ -160,10 +75,7 @@ keyframe_selector = KeyFrameSelector(
 # Setup local feature to use on keyframes
 local_feat_conf = LocalFeatConfFile(cfg)
 local_feat_extractor = LocalFeatureExtractor(
-    cfg.LOCAL_FEAT_LOCAL_FEATURE, 
-    local_feat_conf,
-    cfg.LOCAL_FEAT_N_FEATURES,
-    cfg.CAM0
+    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM0
 )
 
 # If the camera coordinates are known from other sensors than gnss,
@@ -275,42 +187,41 @@ while True:
                 ## Load exif data and store GNSS position if present
                 ## or load camera cooridnates from other sensors
                 ## Exif gnss data works properly only when directions are N and E
-                #exif_data = []
-                #try:
+                # exif_data = []
+                # try:
                 #    exif_data = piexif.load(str(img2))
-                #except:
+                # except:
                 #    logger.error(
                 #        "Error loading exif data. Image file could be corrupted."
                 #    )
-#
-                #if exif_data != [] and len(exif_data["GPS"].keys()) != 0:
-                #    lat = exif_data["GPS"][2]
-                #    long = exif_data["GPS"][4]
-                #    alt = exif_data["GPS"][6]
-                #    enuX, enuY, enuZ = ConvertGnssRefSystm.CovertGnssRefSystm(
-                #        lat, long, alt
-                #    )
-                #    keyframe_obj.GPSLatitude = lat
-                #    keyframe_obj.GPSLongitude = long
-                #    keyframe_obj.GPSAltitude = alt
-                #    keyframe_obj.enuX = enuX
-                #    keyframe_obj.enuY = enuY
-                #    keyframe_obj.enuZ = enuZ
-#
-                #elif exif_data != [] and img2 in camera_coord_other_sensors.keys():
-                #    print("img2", img2)
-                #    enuX, enuY, enuZ = (
-                #        camera_coord_other_sensors[img2][0],
-                #        camera_coord_other_sensors[img2][1],
-                #        camera_coord_other_sensors[img2][2],
-                #    )
-                #    keyframe_obj.enuX = enuX
-                #    keyframe_obj.enuY = enuY
-                #    keyframe_obj.enuZ = enuZ
+            #
+            # if exif_data != [] and len(exif_data["GPS"].keys()) != 0:
+            #    lat = exif_data["GPS"][2]
+            #    long = exif_data["GPS"][4]
+            #    alt = exif_data["GPS"][6]
+            #    enuX, enuY, enuZ = ConvertGnssRefSystm.CovertGnssRefSystm(
+            #        lat, long, alt
+            #    )
+            #    keyframe_obj.GPSLatitude = lat
+            #    keyframe_obj.GPSLongitude = long
+            #    keyframe_obj.GPSAltitude = alt
+            #    keyframe_obj.enuX = enuX
+            #    keyframe_obj.enuY = enuY
+            #    keyframe_obj.enuZ = enuZ
+            #
+            # elif exif_data != [] and img2 in camera_coord_other_sensors.keys():
+            #    print("img2", img2)
+            #    enuX, enuY, enuZ = (
+            #        camera_coord_other_sensors[img2][0],
+            #        camera_coord_other_sensors[img2][1],
+            #        camera_coord_other_sensors[img2][2],
+            #    )
+            #    keyframe_obj.enuX = enuX
+            #    keyframe_obj.enuY = enuY
+            #    keyframe_obj.enuZ = enuZ
 
             processed_imgs.append(img)
             processed += 1
-
 
     # INCREMENTAL RECONSTRUCTION
     kfrms = os.listdir(cfg.KF_DIR_BATCH)
@@ -321,19 +232,23 @@ while True:
         logger.info(f"DYNAMIC MATCHING WINDOW: {cfg.SEQUENTIAL_OVERLAP}")
 
         if first_colmap_loop == True:
-            logger.info('Initialize an empty database')
+            logger.info("Initialize an empty database")
             colmap.CreateEmptyDatabase(cfg.DATABASE)
             timer.update("DATABASE INITIALIZATION")
 
-        logger.info('Feature extraction')
-        if cfg.LOCAL_FEAT_LOCAL_FEATURE != 'RootSIFT':
+        logger.info("Feature extraction")
+        if cfg.LOCAL_FEAT_LOCAL_FEATURE != "RootSIFT":
             local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT)
-        elif cfg.LOCAL_FEAT_LOCAL_FEATURE == 'RootSIFT':
-            colmap.ExtractRootSiftFeatures(database_path=cfg.DATABASE, path_to_images=cfg.KF_DIR_BATCH, first_loop=first_colmap_loop, max_n_features=cfg.LOCAL_FEAT_N_FEATURES)
+        elif cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
+            colmap.ExtractRootSiftFeatures(
+                database_path=cfg.DATABASE,
+                path_to_images=cfg.KF_DIR_BATCH,
+                first_loop=first_colmap_loop,
+                max_n_features=cfg.LOCAL_FEAT_N_FEATURES,
+            )
         timer.update("FEATURE EXTRACTION")
-        
 
-        logger.info('Sequential matcher')
+        logger.info("Sequential matcher")
 
         if cfg.LOOP_CLOSURE_DETECTION == False:
             if first_colmap_loop == True:
@@ -346,32 +261,46 @@ while True:
                 os.listdir(cfg.KF_DIR_BATCH),
                 SEQUENTIAL_OVERLAP,
                 first_colmap_loop,
-                )
+            )
 
-            #matcher.PlotAdjacencyMatrix(adjacency_matrix)
-            keypoints, descriptors, images = import_local_features.ImportLocalFeature(cfg.DATABASE)
+            # matcher.PlotAdjacencyMatrix(adjacency_matrix)
+            keypoints, descriptors, images = import_local_features.ImportLocalFeature(
+                cfg.DATABASE
+            )
             true_indices = np.where(adjacency_matrix)
 
             for i, j in zip(true_indices[0], true_indices[1]):
-                if i > j and i > old_adjacency_matrix_shape-1:
-                    im1 = images[j+1]
-                    im2 = images[i+1]
-                    matches_matrix = matcher.Matcher(descriptors[j+1].astype(float), descriptors[i+1].astype(float), cfg.KORNIA_MATCHER, cfg.RATIO_THRESHOLD)
+                if i > j and i > old_adjacency_matrix_shape - 1:
+                    im1 = images[j + 1]
+                    im2 = images[i + 1]
+                    matches_matrix = matcher.Matcher(
+                        descriptors[j + 1].astype(float),
+                        descriptors[i + 1].astype(float),
+                        cfg.KORNIA_MATCHER,
+                        cfg.RATIO_THRESHOLD,
+                    )
 
                     if matches_matrix.shape[0] < MIN_MATCHES:
                         continue
 
                     db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
-                    db.add_matches(int(j+1), int(i+1), matches_matrix)
+                    db.add_matches(int(j + 1), int(i + 1), matches_matrix)
 
-                    pts1 = keypoints[j+1][matches_matrix[:,0],:2].reshape((-1,2))
-                    pts2 = keypoints[i+1][matches_matrix[:,1],:2].reshape((-1,2))
+                    pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
+                    pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
 
                     if pts1.shape[0] > 8:
-                        if cfg.GEOMETRIC_VERIFICATION == 'ransac':
-                            F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_RANSAC, cfg.MAX_ERROR, cfg.CONFIDENCE, cfg.ITERATIONS)
+                        if cfg.GEOMETRIC_VERIFICATION == "ransac":
+                            F, mask = cv2.findFundamentalMat(
+                                pts1,
+                                pts2,
+                                cv2.FM_RANSAC,
+                                cfg.MAX_ERROR,
+                                cfg.CONFIDENCE,
+                                cfg.ITERATIONS,
+                            )
 
-                        elif cfg.GEOMETRIC_VERIFICATION == 'pydegensac':
+                        elif cfg.GEOMETRIC_VERIFICATION == "pydegensac":
                             F, mask = pydegensac.findFundamentalMatrix(
                                 pts1,
                                 pts2,
@@ -386,40 +315,56 @@ while True:
 
                         if mask.shape[0] > 8:
                             try:
-                                if cfg.GEOMETRIC_VERIFICATION == 'pydegensac':
+                                if cfg.GEOMETRIC_VERIFICATION == "pydegensac":
                                     mask = mask
-                                elif cfg.GEOMETRIC_VERIFICATION == 'ransac':
-                                    mask = mask[:,0]
-                                verified_matches_matrix = matches_matrix[mask,:]
-                                db.add_two_view_geometry(int(j+1), int(i+1), verified_matches_matrix)
+                                elif cfg.GEOMETRIC_VERIFICATION == "ransac":
+                                    mask = mask[:, 0]
+                                verified_matches_matrix = matches_matrix[mask, :]
+                                db.add_two_view_geometry(
+                                    int(j + 1), int(i + 1), verified_matches_matrix
+                                )
                             except:
-                                logger.info('No valid geometry')
+                                logger.info("No valid geometry")
 
                         elif mask.shape[0] <= 8:
-                            logger.info('N points < 8')
+                            logger.info("N points < 8")
 
                     db.commit()
                     db.close()
-        
-        
-        #if cfg.LOOP_CLOSURE_DETECTION == False:
+
+        # if cfg.LOOP_CLOSURE_DETECTION == False:
         #    colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='0', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree='')
 
-        elif cfg.LOOP_CLOSURE_DETECTION == True and cfg.LOCAL_FEAT_LOCAL_FEATURE == 'RootSIFT':
-            colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='1', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree=cfg.VOCAB_TREE)
+        elif (
+            cfg.LOOP_CLOSURE_DETECTION == True
+            and cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT"
+        ):
+            colmap.SequentialMatcher(
+                database_path=cfg.DATABASE,
+                loop_closure="1",
+                overlap=str(SEQUENTIAL_OVERLAP),
+                vocab_tree=cfg.VOCAB_TREE,
+            )
 
         else:
-            logger.info("Not compatible option for loop closure detection. Currently only RootSIFT is supported for loop-closure detection. Quit.")
+            logger.info(
+                "Not compatible option for loop closure detection. Currently only RootSIFT is supported for loop-closure detection. Quit."
+            )
             quit()
 
         timer.update("SEQUENTIAL MATCHER")
 
-
-        logger.info('MAPPER')
-        colmap.Mapper(database_path=cfg.DATABASE, path_to_images=cfg.KF_DIR_BATCH, input_path=cfg.OUT_DIR_BATCH, output_path=cfg.OUT_DIR_BATCH, first_loop=first_colmap_loop)
+        logger.info("MAPPER")
+        colmap.Mapper(
+            database_path=cfg.DATABASE,
+            path_to_images=cfg.KF_DIR_BATCH,
+            input_path=cfg.OUT_DIR_BATCH,
+            output_path=cfg.OUT_DIR_BATCH,
+            first_loop=first_colmap_loop,
+        )
         timer.update("MAPPER")
 
-        logger.info('Convert model from binary to txt')
+        logger.info("Convert model from binary to txt")
         subprocess.run(
             [
                 str(cfg.COLMAP_EXE_PATH),
@@ -479,8 +424,9 @@ while True:
         oriented_kfs_len = len(oriented_dict_list)
         ori_ratio = oriented_kfs_len / total_kfs_number
 
-
-        logger.info(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
+        logger.info(
+            f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+        )
 
         # Report SLAM solution in the reference system of the first image
         ref_img_id = oriented_dict_list[0]
@@ -489,7 +435,7 @@ while True:
         keyframe_obj.slamY = 0.0
         keyframe_obj.slamZ = 0.0
         q0, t0 = oriented_dict[ref_img_id][2]
-        t0 = t0.reshape((3,1))
+        t0 = t0.reshape((3, 1))
         q0_quat = Quaternion(q0)
 
         for keyframe_id in oriented_dict_list:
@@ -498,23 +444,25 @@ while True:
                 pass
             else:
                 qi, ti = oriented_dict[keyframe_id][2]
-                ti = ti.reshape((3,1))
+                ti = ti.reshape((3, 1))
                 qi_quat = Quaternion(qi)
-                ti_in_q0_ref = -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+                ti_in_q0_ref = (
+                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+                )
                 keyframe_obj.slamX = ti_in_q0_ref[0, 0]
                 keyframe_obj.slamY = ti_in_q0_ref[1, 0]
                 keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
 
         with open("./keyframes.pkl", "wb") as f:
             pickle.dump(keyframes_list, f)
-        
+
         # Report 3D points in ref system of the first image
-        with open(f'{cfg.OUT_DIR_BATCH}/points3D.txt', 'r') as file:
+        with open(f"{cfg.OUT_DIR_BATCH}/points3D.txt", "r") as file:
             lines = file.readlines()
-        
+
         data = []
         for line in lines:
-            if line.startswith('#') or line.strip() == '':
+            if line.startswith("#") or line.strip() == "":
                 continue
             values = line.split()
             x = float(values[1])
@@ -522,8 +470,8 @@ while True:
             z = float(values[3])
             p = np.array([[x], [y], [z]])
             p_trans = np.dot(q0_quat.rotation_matrix, p) + t0
-            data.append([p_trans[0,0], p_trans[1,0], p_trans[2,0]])
-        
+            data.append([p_trans[0, 0], p_trans[1, 0], p_trans[2, 0]])
+
         with open("./points3D.pkl", "wb") as f:
             pickle.dump(np.array(data), f)
 
@@ -532,9 +480,14 @@ while True:
         first_colmap_loop = False
 
         # REINITIALIZE SLAM
-        if ori_ratio < cfg.MIN_ORIENTED_RATIO or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS:
-            logger.info(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
-            logger.info('Not enough oriented images')
+        if (
+            ori_ratio < cfg.MIN_ORIENTED_RATIO
+            or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
+        ):
+            logger.info(
+                f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+            )
+            logger.info("Not enough oriented images")
 
             cfg = init.new_batch_solution()
             first_colmap_loop = True
@@ -569,11 +522,11 @@ while True:
                 local_feature_cfg=kf_selection_detecor_config,
                 n_features=cfg.KFS_N_FEATURES,
                 realtime_viz=True,
-                viz_res_path='./frames',
+                viz_res_path="./frames",
             )
-            
+
             continue
- 
+
     timer_global.update(f"{len(kfrms)}")
     time.sleep(cfg.SLEEP_TIME)
 
