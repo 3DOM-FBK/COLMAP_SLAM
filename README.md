@@ -2,20 +2,20 @@
 
 https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/af549427-8e87-445d-92f3-1c14e42b5d5a
 
-Visual-SLAM based on COLMAP API mainly intended for the development and test of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository uses Kornia (https://github.com/kornia/kornia) for matching, and for now only Key.Net+HardNet8 is implemented. All local features made available by Kornia will be added shortly. Other interest points: RootSIFT from COLMAP, ORB from OpenCV, and ALIKE (https://github.com/Shiaoming/ALIKE).
+Visual-SLAM based on COLMAP API mainly intended for the development and test of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository uses [Kornia](https://github.com/kornia/kornia) for matching, and for now only Key.Net+HardNet8 is implemented. All local features made available by Kornia will be added shortly. Other interest points: RootSIFT from COLMAP, ORB from OpenCV, and [ALIKE](https://github.com/Shiaoming/ALIKE).
 
 Currently only the monocular scenario is supported, but we are joining an other repository with other features (multi-cameras, GNSS, IMU). If interested in the project please contact us, you are free to join.
 
-Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to: <https://github.com/colmap/colmap>.
+Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to [COLMAP](https://github.com/colmap/colmap)
 
 ## EuRoC
 
-Download a dataset from <https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets> and unzip it in the data folder.
-For instance, for Machine Hall 01 use only cam0.
+Download a dataset from [https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) and unzip it in the data folder. For instance, for Machine Hall 01 use only cam0.
 
 In linux:
 
 ```bash
+mkdir data
 wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P data
 unzip -q data/MH_01_easy.zip -d data/MH_01_easy
 ```
@@ -33,7 +33,7 @@ pip install -r requirements.txt
 
 ### Remember to install pytorch
 
-See https://pytorch.org/get-started/locally/#linux-pip
+See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
 
 ### Run COLMAP_SLAM
 

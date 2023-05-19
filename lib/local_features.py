@@ -1,16 +1,16 @@
+import os
 from pathlib import Path
 from typing import List, Tuple, Union
 
-import os
 import cv2
-import torch
-import numpy as np
 import kornia as K
 import kornia.feature as KF
-
-from lib.thirdparty.alike.alike import ALike, configs
+import numpy as np
+import torch
 from easydict import EasyDict as edict
+
 from lib import db_colmap
+from lib.thirdparty.alike.alike import ALike, configs
 
 
 class LocalFeatures:
@@ -42,8 +42,7 @@ class LocalFeatures:
 
         elif self.method == "KeyNetAffNetHardNet":
             self.kornia_cfg = cfg
-            self.device = torch.device('cuda') # TODO set to cuda
-
+            self.device = torch.device("cuda")  # TODO set to cuda
 
     def ORB(self, images: List[Path]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         for im_path in images:
@@ -58,7 +57,8 @@ class LocalFeatures:
                 WTA_K=self.orb_cfg.WTA_K,
                 scoreType=self.orb_cfg.scoreType,
                 patchSize=self.orb_cfg.patchSize,
-                fastThreshold=self.orb_cfg.fastThreshold)
+                fastThreshold=self.orb_cfg.fastThreshold,
+            )
             kp = orb.detect(im, None)
             kp, des = orb.compute(im, kp)
             kpts = cv2.KeyPoint_convert(kp)
@@ -91,24 +91,26 @@ class LocalFeatures:
         return self.kpts, self.descriptors
 
     def load_torch_image(self, fname):
-        img = K.image_to_tensor(cv2.imread(fname), False).float() /255.
+        img = K.image_to_tensor(cv2.imread(fname), False).float() / 255.0
         img = K.color.rgb_to_grayscale(K.color.bgr_to_rgb(img))
         return img
 
     def KeyNetAffNetHardNet(self, images: List[Path]):
         for im_path in images:
             img = self.load_torch_image(str(im_path)).to(self.device)
-            keypts = KF.KeyNetAffNetHardNet(num_features=self.n_features, upright=True, device=torch.device('cuda')).forward(img)
-            self.kpts[im_path.stem] = keypts[0].cpu().detach().numpy()[-1,:,:,-1]
-            self.descriptors[im_path.stem] = keypts[2].cpu().detach().numpy()[-1,:,:]
-        
+            keypts = KF.KeyNetAffNetHardNet(
+                num_features=self.n_features, upright=True, device=torch.device("cuda")
+            ).forward(img)
+            self.kpts[im_path.stem] = keypts[0].cpu().detach().numpy()[-1, :, :, -1]
+            self.descriptors[im_path.stem] = keypts[2].cpu().detach().numpy()[-1, :, :]
+
         return self.kpts, self.descriptors
 
 
 def LocalFeatConfFile(cfg_edict) -> edict:
     local_feature = cfg_edict.LOCAL_FEAT_LOCAL_FEATURE
 
-    if local_feature == 'ALIKE':
+    if local_feature == "ALIKE":
         cfg_dict = edict(
             {
                 "model": cfg_edict.LOCAL_FEAT_ALIKE_MODEL,
@@ -120,7 +122,7 @@ def LocalFeatConfFile(cfg_edict) -> edict:
             }
         )
 
-    elif local_feature == 'ORB':
+    elif local_feature == "ORB":
         cfg_dict = edict(
             {
                 "scaleFactor": cfg_edict.LOCAL_FEAT_ORB_SCALE_FACTOR,
@@ -133,21 +135,13 @@ def LocalFeatConfFile(cfg_edict) -> edict:
                 "fastThreshold": cfg_edict.LOCAL_FEAT_ORB_FAST_THRESHOLD,
             }
         )
-    
-    elif local_feature == 'KeyNetAffNetHardNet':
-        cfg_dict = edict(
-            {
 
-            }
-        )
+    elif local_feature == "KeyNetAffNetHardNet":
+        cfg_dict = edict({})
 
-    elif local_feature == 'RootSIFT':
-        cfg_dict = edict(
-            {
+    elif local_feature == "RootSIFT":
+        cfg_dict = edict({})
 
-            }
-        )
-    
     else:
         print("In LocalFeatConfFile() in local_features.py missing local feat")
         quit()
@@ -158,19 +152,20 @@ def LocalFeatConfFile(cfg_edict) -> edict:
 class LocalFeatureExtractor:
     def __init__(
         self,
-        local_feature : str = "ORB",
-        local_feature_cfg : dict = None,
-        n_features : int = 1024,
-        cam0_calib: str = '',
+        local_feature: str = "ORB",
+        local_feature_cfg: dict = None,
+        n_features: int = 1024,
+        cam0_calib: str = "",
     ) -> None:
         self.local_feature = local_feature
-        self.detector_and_descriptor = LocalFeatures(local_feature, n_features, local_feature_cfg)
-        self.model1, self.width1, self.height1, other = cam0_calib.strip().split(',', 3)
-        params1 = other.split(',', 7) 
+        self.detector_and_descriptor = LocalFeatures(
+            local_feature, n_features, local_feature_cfg
+        )
+        self.model1, self.width1, self.height1, other = cam0_calib.strip().split(",", 3)
+        params1 = other.split(",", 7)
         self.params1 = np.array(params1).astype(np.float32)
-    
-    def run(self, database, keyframe_dir, image_format) -> None:
 
+    def run(self, database, keyframe_dir, image_format) -> None:
         db = db_colmap.COLMAPDatabase.connect(str(database))
         camera_id1 = db.add_camera(self.model1, self.width1, self.height1, self.params1)
         kfrms = os.listdir(keyframe_dir)
@@ -184,13 +179,13 @@ class LocalFeatureExtractor:
             if img not in existing_images.values():
                 extract = getattr(self.detector_and_descriptor, self.local_feature)
                 kpts, descriptors = extract([keyframe_dir / img])
-                kp = kpts[img[:-len(image_format)-1]]
-                desc = descriptors[img[:-len(image_format)-1]]
+                kp = kpts[img[: -len(image_format) - 1]]
+                desc = descriptors[img[: -len(image_format) - 1]]
 
-                kp = kp[:, 0:2]                
+                kp = kp[:, 0:2]
 
                 desc_len = np.shape(desc)[1]
-                zero_matrix = np.zeros((np.shape(desc)[0], 128-desc_len))
+                zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
                 desc = np.append(desc, zero_matrix, axis=1)
                 desc.astype(np.float32)
                 desc = np.absolute(desc)
