@@ -9,3 +9,5 @@ piexif
 pydegensac
 easydict
 plotly
+pyquaternion
+kornia
