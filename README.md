@@ -37,19 +37,26 @@ python3 main.py
 
 
 ### Usage Example in LINUX [Ubuntu 22.04 TESTED]
+
 1) Clone the repo to your local folder 
 ``` git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git  ```
+
 2) Enter the cloned repo
 ``` cd COLMAP_SLAM```
+
 3) Create the conda env with Python 3.10 and enter into 'colmap_slam'
-``` conda create -n colmap_slam python=3.10
+``` 
+conda create -n colmap_slam python=3.10
 conda activate colmap_slam
 ```
+
 4) Upgrade pip ```python -m pip install --upgrade pip```
-5) Allow WSL2 for cuda capabilities check 
-```
-https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_local```
+
+6) Allow WSL2 for cuda capabilities check 
+https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_local
+
 cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb ~3.02GB
+
 ```
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
 sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
@@ -66,9 +73,11 @@ sudo apt-get install nvidia-gds
 ```
 
 **WARNING** - reboot needed - **WARNING**
+
 rememnre to re-activate the conda env after reboot
 
-``` sudo reboot
+``` 
+sudo reboot
 ```
 
 update system variables
@@ -88,13 +97,16 @@ GCC version:  gcc version 11.3.0 (Ubuntu 11.3.0-1ubuntu1~22.04.1)
 
 testing CUDA
 
-```git clone https://github.com/NVIDIA/cuda-samples.git
+```
+git clone https://github.com/NVIDIA/cuda-samples.git
 cd cuda-samples
-make -j 8```
+make -j 8
+```
 
 then check if one example is working
 
-```cd Samples/1_Utilities/deviceQuery
+```
+cd Samples/1_Utilities/deviceQuery
 make clean
 make -j 8
 ./deviceQuery
@@ -145,22 +157,16 @@ Device 0: "NVIDIA RTX A3000 12GB Laptop GPU"
 
 deviceQuery, CUDA Driver = CUDART, CUDA Driver Version = 12.1, CUDA Runtime Version = 12.1, NumDevs = 1
 Result = PASS
-
 ```
+
 compare your output with: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#running-binaries-valid-results-from-sample-cuda-devicequery-program
 
-check cuda version
-```nvcc --version```
-```
-nvcc: NVIDIA (R) Cuda compiler driver
-Copyright (c) 2005-2019 NVIDIA Corporation
-Built on Sun_Jul_28_19:07:16_PDT_2019
-Cuda compilation tools, release 10.1, V10.1.243
-```
 
 install 3rd party libraries
-```sudo apt-get install g++ freeglut3-dev build-essential libx11-dev \
-    libxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev libglfw3-dev```
+```
+sudo apt-get install g++ freeglut3-dev build-essential libx11-dev \
+    libxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev libglfw3-dev
+```
 
 6a) Install pyTorch (with CUDA) use the https://pytorch.org/get-started/locally/
 ```
@@ -172,36 +178,44 @@ pip3 install torch torchvision torchaudio
 ```
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
+
 7) Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
 ```
 apt list | grep colmap
 >>colmap/jammy 3.7-2 amd64
 ```
+
 ```
 sudo apt install colmap
 ```
+
 8) Install requirements ```pip install -r requirements.txt```
 9) Download EuRoC dataset https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
 MH_01_easy.zip ~1.5 GB
+
 ```mkdir raw_data
 cd raw_data
-wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip``` 
+wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip
+``` 
+
 10) place downloaded dataset (e.g. **Machine Hall 01** in a folder) 
 ```
 mv ~/Downloads/MH_01_easy.zip ~/COLMAP_SLAM/raw_data/MH_01_easy.zip
 unzip -d ./MH_01_easy/ MH_01_easy.zip
 ```
+
 11) Set up the **config.ini** file with proper location of dataset
 ```
 SIMULATOR_IMG_DIR = ~/COLMAP_SLAM/raw_data/MH_01_easy/mav0/cam0/data
 COLMAP_EXE_DIR = /usr/bin/
 ```
-12) Run 
+
+12) Run COLMAP_SLAM
 ```
 python3 main.py
 ```
 
-
+Currently some issues with pop-out window to be fixed
 
 ### Usage Example in WSL2 [to be TESTED]
 1) Clone the repo to your local folder 
