@@ -39,10 +39,14 @@ python3 main.py
 ### Usage Example in LINUX [Ubuntu 22.04 TESTED]
 
 1) Clone the repo to your local folder 
-``` git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git  ```
+```
+git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git
+```
 
 2) Enter the cloned repo
-``` cd COLMAP_SLAM```
+```
+cd COLMAP_SLAM
+```
 
 3) Create the conda env with Python 3.10 and enter into 'colmap_slam'
 ``` 
@@ -50,14 +54,18 @@ conda create -n colmap_slam python=3.10
 conda activate colmap_slam
 ```
 
-4) Upgrade pip ```python -m pip install --upgrade pip```
+4) Upgrade pip
+```
+python -m pip install --upgrade pip
+```
 
-6) Allow WSL2 for cuda capabilities check 
+5) Allow for cuda capabilities check [remove old key] 
 https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_local
 
 cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb ~3.02GB
 
 ```
+sudo apt-key del 7fa2af80
 wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
 sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
 wget https://developer.download.nvidia.com/compute/cuda/12.1.1/local_installers/cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb
@@ -168,15 +176,9 @@ sudo apt-get install g++ freeglut3-dev build-essential libx11-dev \
     libxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev libglfw3-dev
 ```
 
-6a) Install pyTorch (with CUDA) use the https://pytorch.org/get-started/locally/
+6) Install pyTorch (with CUDA) use the https://pytorch.org/get-started/locally/
 ```
 pip3 install torch torchvision torchaudio
-```
-
-
-6b) Install pyTorch (no CUDA) [not much of use]
-```
-pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
 
 7) Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
@@ -189,11 +191,15 @@ apt list | grep colmap
 sudo apt install colmap
 ```
 
-8) Install requirements ```pip install -r requirements.txt```
+8) Install requirements 
+```
+pip install -r requirements.txt
+```
 9) Download EuRoC dataset https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
 MH_01_easy.zip ~1.5 GB
 
-```mkdir raw_data
+```
+mkdir raw_data
 cd raw_data
 wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip
 ``` 
