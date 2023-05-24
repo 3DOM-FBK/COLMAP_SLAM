@@ -10,14 +10,14 @@ Note the repository is an adaptation of COLMAP to work in real-time, for code an
 
 ## EuRoC
 
-Download a dataset from [https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) and unzip it in the data folder. For instance, for Machine Hall 01 use only cam0.
+Download a dataset from [https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) and unzip it in the `raw_data` folder. For instance, for Machine Hall 01 use only cam0.
 
-In linux:
+In linux, you can use the following commands:
 
 ```bash
-mkdir data
-wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P data
-unzip -q data/MH_01_easy.zip -d data/MH_01_easy
+mkdir raw_data
+wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P raw_data
+unzip -q raw_data/MH_01_easy.zip -d raw_data/MH_01_easy
 ```
 
 ### Install in Conda Environment
@@ -31,9 +31,7 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Remember to install pytorch
-
-See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
+Remember to install pytorch. See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
 
 ### Run COLMAP_SLAM
 
@@ -43,61 +41,48 @@ Change `config.ini` according to your needs and run
 python3 main.py
 ```
 
+Remeber to set the path to the COLMAP executable in `config.ini`, e.g., for linux:
+
+```bash
+COLMAP_EXE_DIR = /usr/local/bin/
+```
 
 ### Usage Example in LINUX [Ubuntu 22.04 TESTED]
 
-1) Clone the repo to your local folder 
-```
-git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git
-```
+Clone the repo to your local folder and enter the cloned repo
 
-2) Enter the cloned repo
-```
+```bash
+git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git
 cd COLMAP_SLAM
 ```
 
-3) Create the conda env with Python 3.10 and enter into 'colmap_slam'
-``` 
+Create the conda environment `colmap_slam` with Python 3.10
+
+```bash
 conda create -n colmap_slam python=3.10
 conda activate colmap_slam
-```
-
-4) Upgrade pip
-```
 python -m pip install --upgrade pip
 ```
 
-5) Allow for cuda capabilities check [remove old key] 
-https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=Ubuntu&target_version=22.04&target_type=deb_local
-
-cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb ~3.02GB
-
-```
-sudo apt-key del 7fa2af80
-wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-ubuntu2204.pin
-sudo mv cuda-ubuntu2204.pin /etc/apt/preferences.d/cuda-repository-pin-600
-wget https://developer.download.nvidia.com/compute/cuda/12.1.1/local_installers/cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb
-sudo dpkg -i cuda-repo-ubuntu2204-12-1-local_12.1.1-530.30.02-1_amd64.deb
-sudo cp /var/cuda-repo-ubuntu2204-12-1-local/cuda-*-keyring.gpg /usr/share/keyrings/
-sudo apt-get update
-sudo apt-get -y install cuda
-```
+To Allow for cuda capability, install CUDA Toolkit 12.1 following the instruction availble at the official NVIDIA website. Chose the options depending on your system configuration.
+<https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&**Distribution**=Ubuntu&target_version=22.04&target_type=deb_local>
 
 IF GDS is of interest
-```
+
+```bash
 sudo apt-get install nvidia-gds
 ```
 
-**WARNING** - reboot needed - **WARNING**
+**Reboot** the system and re-activate the conda env after reboot
 
-rememnre to re-activate the conda env after reboot
-
-``` 
+```bash
 sudo reboot
+conda activate colmap_slam
 ```
 
 update system variables
-```
+
+```bash
 export PATH=/usr/local/cuda-12.0/bin${PATH:+:${PATH}}
 export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64\
                          ${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
@@ -105,23 +90,18 @@ export LD_LIBRARY_PATH=/usr/local/cuda-12.0/lib64\
 
 verify driver versions
 
-```
+```bash
 cat /proc/driver/nvidia/version
 NVRM version: NVIDIA UNIX x86_64 Kernel Module  530.30.02  Wed Feb 22 04:11:39 UTC 2023
-GCC version:  gcc version 11.3.0 (Ubuntu 11.3.0-1ubuntu1~22.04.1) 
+GCC version:  gcc version 11.3.0 (Ubuntu 11.3.0-1ubuntu1~22.04.1)
 ```
 
-testing CUDA
+test CUDA installation by using one example
 
-```
+```bash
 git clone https://github.com/NVIDIA/cuda-samples.git
 cd cuda-samples
 make -j 8
-```
-
-then check if one example is working
-
-```
 cd Samples/1_Utilities/deviceQuery
 make clean
 make -j 8
@@ -175,77 +155,77 @@ deviceQuery, CUDA Driver = CUDART, CUDA Driver Version = 12.1, CUDA Runtime Vers
 Result = PASS
 ```
 
-compare your output with: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#running-binaries-valid-results-from-sample-cuda-devicequery-program
-
+compare your output with: <https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#running-binaries-valid-results-from-sample-cuda-devicequery-program>
 
 install 3rd party libraries
-```
+
+```bash
 sudo apt-get install g++ freeglut3-dev build-essential libx11-dev \
     libxmu-dev libxi-dev libglu1-mesa-dev libfreeimage-dev libglfw3-dev
 ```
 
-6) Install pyTorch (with CUDA) use the https://pytorch.org/get-started/locally/
-```
-pip3 install torch torchvision torchaudio
-```
+Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
 
-7) Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
-```
+```bash
 apt list | grep colmap
 >>colmap/jammy 3.7-2 amd64
 ```
 
-```
+```bash
 sudo apt install colmap
 ```
 
-8) Install requirements 
-```
-pip install -r requirements.txt
-```
-9) Download EuRoC dataset https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
-MH_01_easy.zip ~1.5 GB
+Install requirements and PyTorch (with CUDA). For PyTorch follow the istructions in the official website <https://pytorch.org/get-started/locally/>
 
+```bash
+pip3 install -r requirements.txt
+pip3 install torch torchvision
 ```
+
+Download a EuRoC dataset from <https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets> (MH_01_easy.zip is ~1.5 GB)
+
+```bash
 mkdir raw_data
-cd raw_data
-wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip
-``` 
-
-10) place downloaded dataset (e.g. **Machine Hall 01** in a folder) 
-```
-mv ~/Downloads/MH_01_easy.zip ~/COLMAP_SLAM/raw_data/MH_01_easy.zip
-unzip -d ./MH_01_easy/ MH_01_easy.zip
+wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P raw_data
+unzip -q raw_data/MH_01_easy.zip -d raw_data/MH_01_easy
 ```
 
-11) Set up the **config.ini** file with proper location of dataset
-```
-SIMULATOR_IMG_DIR = ~/COLMAP_SLAM/raw_data/MH_01_easy/mav0/cam0/data
+Set up the **config.ini** file with proper location of dataset
+
+```bash
+SIMULATOR_IMG_DIR = ./raw_data/MH_01_easy/mav0/cam0/data
 COLMAP_EXE_DIR = /usr/bin/
 ```
 
-12) Run COLMAP_SLAM
-```
+Run COLMAP_SLAM
+
+```bash
 python3 main.py
 ```
 
 Currently some issues with pop-out window to be fixed
 
 ### Usage Example in WSL2 [to be TESTED]
-1) Clone the repo to your local folder 
-``` git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git  ```
-2) Enter the cloned repo
-``` cd COLMAP_SLAM```
-3) Create the conda env with Python 3.10 and enter into 'colmap_slam'
-``` conda create -n colmap_slam python=3.10
+
+1. Clone the repo to your local folder
+   `git clone https://github.com/3DOM-FBK/COLMAP_SLAM.git `
+2. Enter the cloned repo
+   ` cd COLMAP_SLAM`
+3. Create the conda env with Python 3.10 and enter into 'colmap_slam'
+
+```conda create -n colmap_slam python=3.10
 conda activate colmap_slam
 ```
-4) Upgrade pip ```python -m pip install --upgrade pip```
-5) Allow WSL2 for cuda capabilities check 
+
+4. Upgrade pip `python -m pip install --upgrade pip`
+5. Allow WSL2 for cuda capabilities check
+
 ```
 https://developer.nvidia.com/cuda-downloads?target_os=Linux&target_arch=x86_64&Distribution=WSL-Ubuntu&target_version=2.0&target_type=deb_local
 ```
+
 cuda-repo-wsl-ubuntu-12-1-local_12.1.1-1_amd64.deb ~2.6GB
+
 ```
 sudo apt-key del 7fa2af80
 sudo apt install nvidia-cuda-toolkit
@@ -255,13 +235,15 @@ sudo mv cuda-wsl-ubuntu.pin /etc/apt/preferences.d/cuda-repository-pin-600
 wget https://developer.download.nvidia.com/compute/cuda/12.1.1/local_installers/cuda-repo-wsl-ubuntu-12-1-local_12.1.1-1_amd64.deb
 
 # TO BE VERIFIED
-sudo dpkg -i cuda-repo-wsl-ubuntu-12-1-local_12.1.1-1_amd64.deb 
+sudo dpkg -i cuda-repo-wsl-ubuntu-12-1-local_12.1.1-1_amd64.deb
 sudo cp /var/cuda-repo-wsl-ubuntu-12-1-local/cuda-*-keyring.gpg /usr/share/keyrings/
 sudo apt-get update
 sudo apt-get -y install cuda
 ```
+
 check cuda version
-```nvcc --version```
+`nvcc --version`
+
 ```
 nvcc: NVIDIA (R) Cuda compiler driver
 Copyright (c) 2005-2019 NVIDIA Corporation
@@ -270,42 +252,51 @@ Cuda compilation tools, release 10.1, V10.1.243
 ```
 
 6a) Install pyTorch (with CUDA) use the https://pytorch.org/get-started/locally/
+
 ```
 pip3 install torch torchvision torchaudio
 ```
 
-
 6b) Install pyTorch (no CUDA) [not much of use]
+
 ```
 pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 ```
-7) Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
+
+7. Install colmap based on your system: https://colmap.github.io/install.html#pre-built-binaries
+
 ```
 apt list | grep colmap
 >>colmap/focal 3.6+dev2+git20191105-1build1 amd64
 ```
+
 ```
 sudo apt install colmap
 ```
-8) Install requirements ```pip install -r requirements.txt```
-9) Download EuRoC dataset https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
-MH_01_easy.zip ~1.5 GB
-```http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip``` 
-10) place downloaded dataset (e.g. **Machine Hall 01** in a folder) 
+
+8. Install requirements `pip install -r requirements.txt`
+9. Download EuRoC dataset https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
+   MH_01_easy.zip ~1.5 GB
+   `http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip`
+10. place downloaded dataset (e.g. **Machine Hall 01** in a folder)
+
 ```
 mv ~/Downloads/MH_01_easy.zip ~/COLMAP_SLAM/raw_data/MH_01_easy.zip
 unzip -d ./MH_01_easy/ MH_01_easy.zip
 ```
-11) Set up the **config.ini** file with proper location of dataset
+
+11. Set up the **config.ini** file with proper location of dataset
+
 ```
 SIMULATOR_IMG_DIR = ~/COLMAP_SLAM/raw_data/MH_01_easy/mav0/cam0/data
 
 ```
-12) Run 
+
+12. Run
+
 ```
 python3 main.py
 ```
-
 
 ### TODO
 
@@ -318,6 +309,7 @@ python3 main.py
 - [ ] Join IMU aiding
 - [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
 - [ ] Example testing
+
 ### Reference
 
 Code authors: Luca Morelli and Francesco Ioli.
@@ -325,10 +317,9 @@ Code authors: Luca Morelli and Francesco Ioli.
 Reference Article:
 COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
 
-Authors: 
+Authors:
 L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
 
 ### Notes
 
 - In mapper.ini keep transitivity high.
-
