@@ -532,7 +532,6 @@ while True:
 
 average_loop_time = timer_global.get_average_time()
 total_time = timer_global.get_total_time()
-timer_global.print("Timer global")
 
 logging.info(f"Average loop time: {average_loop_time:.4f} s")
 logging.info(f"Total time: {total_time:.4f} s")

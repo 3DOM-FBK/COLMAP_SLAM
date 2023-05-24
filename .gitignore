@@ -1,15 +1,14 @@
 # Specific
 data/
 imgs/
+logs/
+temp/
+frames/
 colmap_imgs/
 outs/ 
-config.ini
 matches_plot/
-keyframes/
-config.ini
-kfs_matches/
-res/
-test/
+keyframes.pkl
+points3D.pkl
 
 
 # VScode
