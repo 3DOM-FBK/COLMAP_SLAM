@@ -4,6 +4,7 @@ import pickle
 import shutil
 import subprocess
 import time
+import torch
 
 import cv2
 import numpy as np
@@ -93,12 +94,12 @@ if cfg.USE_EXTERNAL_CAM_COORD == True:
 if cfg.USE_SERVER == True:
     stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
 else:
-    stream_proc = subprocess.Popen(["python3", "./simulator.py"])
+    stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
 # Set-up plotqq
 # create_plot()
 if cfg.PLOT_TRJECTORY:
-    plot_proc = subprocess.Popen(["python3", "./plot.py"])
+    plot_proc = subprocess.Popen(["python", "./plot.py"])
 
 # Initialize COLMAP API
 colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
@@ -320,6 +321,7 @@ while True:
                                 elif cfg.GEOMETRIC_VERIFICATION == "ransac":
                                     mask = mask[:, 0]
                                 verified_matches_matrix = matches_matrix[mask, :]
+                                verified_matches_matrix = verified_matches_matrix.numpy()
                                 db.add_two_view_geometry(
                                     int(j + 1), int(i + 1), verified_matches_matrix
                                 )
