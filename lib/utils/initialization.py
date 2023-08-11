@@ -93,7 +93,10 @@ class Inizialization:
         
         with open("./lib/camera_models.json", 'r') as json_file:
             json_data = json_file.read()
-            cfg.CAM_TYPES = json.loads(json_data)
+            json_data = json.loads(json_data)
+            for key in json_data:
+                json_data[key] = tuple(json_data[key].strip('()').split(', '))
+            cfg.CAM_TYPES = json_data
 
         # KEYFRAME_SELECTION
         cfg.INNOVATION_THRESH_PIX =int(config["KEYFRAME_SELECTION"]["INNOVATION_THRESH_PIX"])

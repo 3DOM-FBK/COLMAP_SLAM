@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from easydict import EasyDict as edict
 
-from lib import db_colmap
+from lib import db_colmap, cameras
 from lib.thirdparty.alike.alike import ALike, configs
 
 
@@ -156,53 +156,56 @@ class LocalFeatureExtractor:
         local_feature_cfg: dict = None,
         n_features: int = 1024,
         cam_calib : dict = {},
-        cam_types : dict = {},
+        database : Union[str, Path] = "",
     ) -> None:
         self.local_feature = local_feature
         self.detector_and_descriptor = LocalFeatures(
             local_feature, n_features, local_feature_cfg
         )
-        #self.model1, self.width1, self.height1, other = cam0_calib.strip().split(",", 3)
-        #params1 = other.split(",", 7)
-        #self.params1 = np.array(params1).astype(np.float32)
+
+        cameras.CreateCameras(cam_calib, database)
+
 
     def run(self, database, keyframe_dir, image_format) -> None:
         db = db_colmap.COLMAPDatabase.connect(str(database))
-        camera_id1 = db.add_camera(self.model1, self.width1, self.height1, self.params1)
-        kfrms = os.listdir(keyframe_dir)
-        kfrms.sort()
+        cams = os.listdir(keyframe_dir)
+
+        #kfrms.sort()
         existing_images = dict(
             (image_id, name)
             for image_id, name in db.execute("SELECT image_id, name FROM images")
         )
 
-        for img in kfrms:
-            if img not in existing_images.values():
-                extract = getattr(self.detector_and_descriptor, self.local_feature)
-                kpts, descriptors = extract([keyframe_dir / img])
-                kp = kpts[img[: -len(image_format) - 1]]
-                desc = descriptors[img[: -len(image_format) - 1]]
+        for cam in cams:
+            imgs = os.listdir(keyframe_dir / cam)
+            for img in imgs:
+                img = Path(cam) / Path(img)
+                if img not in existing_images.values():
+                    extract = getattr(self.detector_and_descriptor, self.local_feature)
+                    kpts, descriptors = extract([keyframe_dir / img])
+                    kp = kpts[img.name[: -len(image_format) - 1]]
+                    desc = descriptors[img.name[: -len(image_format) - 1]]
 
-                kp = kp[:, 0:2]
+                    kp = kp[:, 0:2]
 
-                desc_len = np.shape(desc)[1]
-                zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
-                desc = np.append(desc, zero_matrix, axis=1)
-                desc.astype(np.float32)
-                desc = np.absolute(desc)
+                    desc_len = np.shape(desc)[1]
+                    zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
+                    desc = np.append(desc, zero_matrix, axis=1)
+                    desc.astype(np.float32)
+                    desc = np.absolute(desc)
 
-                desc = desc * 512 / np.linalg.norm(desc, axis=1).reshape((-1, 1))
-                desc = np.round(desc)
-                desc = np.array(desc, dtype=np.uint8)
+                    desc = desc * 512 / np.linalg.norm(desc, axis=1).reshape((-1, 1))
+                    desc = np.round(desc)
+                    desc = np.array(desc, dtype=np.uint8)
 
-                one_matrix = np.ones((np.shape(kp)[0], 1))
-                kp = np.append(kp, one_matrix, axis=1)
-                zero_matrix = np.zeros((np.shape(kp)[0], 3))
-                kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
+                    one_matrix = np.ones((np.shape(kp)[0], 1))
+                    kp = np.append(kp, one_matrix, axis=1)
+                    zero_matrix = np.zeros((np.shape(kp)[0], 3))
+                    kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
 
-                img_id = db.add_image(img, camera_id1)
-                db.add_keypoints(img_id, kp)
-                db.add_descriptors(img_id, desc)
-                db.commit()
+                    img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                    db.add_keypoints(img_id, kp)
+                    db.add_descriptors(img_id, desc)
+                    db.commit()
 
         db.close()

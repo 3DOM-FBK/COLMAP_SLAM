@@ -23,6 +23,7 @@ from lib.colmapAPI import ColmapAPI
 from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
 from lib.keyframes import KeyFrame, KeyFrameList
 from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
+from lib import cameras
 from pathlib import Path
 
 # Configuration file
@@ -83,7 +84,7 @@ keyframe_selector = KeyFrameSelector(
 # Setup local feature to use on keyframes
 local_feat_conf = LocalFeatConfFile(cfg)
 local_feat_extractor = LocalFeatureExtractor(
-    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.CAM_TYPES,
+    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
 )
 
 # If the camera coordinates are known from other sensors than gnss,
@@ -257,7 +258,11 @@ while True:
                 first_loop=first_colmap_loop,
                 max_n_features=cfg.LOCAL_FEAT_N_FEATURES,
             )
+        
+        cameras.AssignCameras(cfg.DATABASE, len(cfg.CAM))
+
         timer.update("FEATURE EXTRACTION")
+        quit()
 
         logger.info("Sequential matcher")
 
