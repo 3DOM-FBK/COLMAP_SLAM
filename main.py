@@ -4,7 +4,6 @@ import pickle
 import shutil
 import subprocess
 import time
-import torch
 
 import cv2
 import numpy as np
@@ -36,8 +35,17 @@ logger = logging.getLogger("ColmapSLAM")
 # Inizialize COLMAP SLAM problem
 init = utils.Inizialization(CFG_FILE)
 cfg = init.inizialize()
+cfg.PLOT_TRJECTORY = False # Please keep PLOT_TRAJECTORY = False.
+# It is used to plot an additional trajectory (matplotlib) but for now shows rarely a bug (multiple plots).
+# In any case the plot from opencv will show
 
 # Initialize variables
+SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
+MAX_SEQUENTIAL_OVERLAP = 50
+if cfg.SNAPSHOT == True:
+    SNAPSHOT_DIR = './frames'
+elif cfg.SNAPSHOT == False:
+    SNAPSHOT_DIR = None
 keyframes_list = KeyFrameList()
 processed_imgs = []
 oriented_imgs_batch = []
@@ -49,9 +57,6 @@ one_time = False  # It becomes true after the first batch of images is oriented
 # At following epochs the photogrammetric model will be reported in this ref system.
 reference_imgs = []
 adjacency_matrix = None
-SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
-MAX_SEQUENTIAL_OVERLAP = 50
-MIN_MATCHES = 50
 
 # Setup keyframe selector
 kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
@@ -66,7 +71,7 @@ keyframe_selector = KeyFrameSelector(
     local_feature_cfg=kf_selection_detecor_config,
     n_features=cfg.KFS_N_FEATURES,
     realtime_viz=True,
-    viz_res_path="./frames",  # None
+    viz_res_path=SNAPSHOT_DIR,
     innovation_threshold_pix=cfg.INNOVATION_THRESH_PIX,
     min_matches=cfg.MIN_MATCHES,
     error_threshold=cfg.RANSAC_THRESHOLD,
@@ -111,16 +116,16 @@ while True:
     # Get sorted image list available in imgs folders
     imgs = sorted(cfg.IMGS_FROM_SERVER.glob(f"*.{cfg.IMG_FORMAT}"))
 
-    # If using the simulator, check if process is still alive, otherwise quit
-    if cfg.USE_SERVER == False:
-        if stream_proc.poll() is not None:
-            logging.info("Simulator completed.")
-            if cfg.PLOT_TRJECTORY:
-                plot_proc.kill()
-            break
-    else:
-        # Make exit condition when using server
-        pass
+    ## If using the simulator, check if process is still alive, otherwise quit
+    #if cfg.USE_SERVER == False:
+    #    if stream_proc.poll() is not None:
+    #        logging.info("Simulator completed.")
+    #        if cfg.PLOT_TRJECTORY:
+    #            plot_proc.kill()
+    #        break
+    #else:
+    #    # Make exit condition when using server
+    #    pass
 
     kfm_batch = []
 
@@ -184,6 +189,8 @@ while True:
                 newer_imgs = True
                 kfm_batch.append(img)
                 keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
+                with open('keyframes.txt', 'a') as kfm_imgs:
+                    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH/keyframe_obj._keyframe_name}\n")
 
                 ## Load exif data and store GNSS position if present
                 ## or load camera cooridnates from other sensors
@@ -281,7 +288,7 @@ while True:
                         cfg.RATIO_THRESHOLD,
                     )
 
-                    if matches_matrix.shape[0] < MIN_MATCHES:
+                    if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
                         continue
 
                     db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
@@ -321,7 +328,6 @@ while True:
                                 elif cfg.GEOMETRIC_VERIFICATION == "ransac":
                                     mask = mask[:, 0]
                                 verified_matches_matrix = matches_matrix[mask, :]
-                                verified_matches_matrix = verified_matches_matrix.numpy()
                                 db.add_two_view_geometry(
                                     int(j + 1), int(i + 1), verified_matches_matrix
                                 )
@@ -357,6 +363,7 @@ while True:
         timer.update("SEQUENTIAL MATCHER")
 
         logger.info("MAPPER")
+
         colmap.Mapper(
             database_path=cfg.DATABASE,
             path_to_images=cfg.KF_DIR_BATCH,
@@ -364,6 +371,48 @@ while True:
             output_path=cfg.OUT_DIR_BATCH,
             first_loop=first_colmap_loop,
         )
+        
+        if not os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"):
+            print("Failed Mapper. Reinitializing..")
+            cfg = init.new_batch_solution()
+            first_colmap_loop = True
+            for im in processed_imgs:
+                os.remove(cfg.CURRENT_DIR / im)
+
+            # Setup logging level
+            LOG_LEVEL = logging.INFO
+            utils.Inizialization.setup_logger(LOG_LEVEL)
+            logger = logging.getLogger("ColmapSLAM")
+
+            # Initialize variables
+            keyframes_list = KeyFrameList()
+            processed_imgs = []
+            oriented_imgs_batch = []
+            pointer = 0
+            delta = 0
+            first_colmap_loop = True
+            one_time = False
+            reference_imgs = []
+
+            # Setup keyframe selector
+            kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
+            keyframe_selector = KeyFrameSelector(
+                keyframes_list=keyframes_list,
+                last_keyframe_pointer=pointer,
+                last_keyframe_delta=delta,
+                keyframes_dir=cfg.KF_DIR_BATCH,
+                kfs_method=cfg.KFS_METHOD,
+                geometric_verification="pydegensac",
+                local_feature=cfg.KFS_LOCAL_FEATURE,
+                local_feature_cfg=kf_selection_detecor_config,
+                n_features=cfg.KFS_N_FEATURES,
+                realtime_viz=True,
+                viz_res_path=SNAPSHOT_DIR,
+            )
+
+            continue
+
+
         timer.update("MAPPER")
 
         logger.info("Convert model from binary to txt")
@@ -524,13 +573,17 @@ while True:
                 local_feature_cfg=kf_selection_detecor_config,
                 n_features=cfg.KFS_N_FEATURES,
                 realtime_viz=True,
-                viz_res_path="./frames",
+                viz_res_path=SNAPSHOT_DIR,
             )
 
             continue
 
     timer_global.update(f"{len(kfrms)}")
     time.sleep(cfg.SLEEP_TIME)
+
+if len(imgs) == 0:
+    logger.info('No frames are detected. Check paths in config.ini')
+    quit()
 
 average_loop_time = timer_global.get_average_time()
 total_time = timer_global.get_total_time()

@@ -10,12 +10,14 @@ from PIL import Image, ImageOps
 
 DEBUG = False
 END = 1000000  # max number of images to process
-
+SKIP = 0
 
 def run_simulator(
     imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False
 ):
     for i, img in enumerate(imgs):
+        if i < SKIP:
+            continue
         if i == END:
             logging.info(
                 f"Processed {END} images. Change the END variable in simulator.py to process more."

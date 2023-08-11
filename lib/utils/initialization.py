@@ -55,6 +55,7 @@ class Inizialization:
 
         # DEFAULT
         cfg.PLOT_TRJECTORY = config["DEFAULT"].getboolean("PLOT_TRJECTORY")
+        cfg.SNAPSHOT = config["DEFAULT"].getboolean("SNAPSHOT")
         cfg.OS = config["DEFAULT"]["OS"]
         cfg.USE_SERVER = config["DEFAULT"].getboolean("USE_SERVER")
         cfg.LAUNCH_SERVER_PATH = Path(config["DEFAULT"]["LAUNCH_SERVER_PATH"])
@@ -121,6 +122,7 @@ class Inizialization:
         cfg.LOCAL_FEAT_ORB_SCORE_TYPE = int(config["LOCAL_FEATURES"]["ORB_SCORE_TYPE"])
         cfg.LOCAL_FEAT_ORB_PATCH_SIZE = int(config["LOCAL_FEATURES"]["ORB_PATCH_SIZE"])
         cfg.LOCAL_FEAT_ORB_FAST_THRESHOLD = int(config["LOCAL_FEATURES"]["ORB_FAST_THRESHOLD"])
+        cfg.LOCAL_FEAT_MIN_MATCHES = int(config["LOCAL_FEATURES"]["MIN_MATCHES"])
 
         # MATCHING
         cfg.KORNIA_MATCHER = config["MATCHING"]["KORNIA_MATCHER"]
@@ -180,6 +182,7 @@ class Inizialization:
             shutil.rmtree(self.cfg.TEMP_DIR)
             shutil.rmtree(self.cfg.KEYFRAMES_DIR)
             shutil.rmtree(self.cfg.OUT_FOLDER)
+            os.remove("./keyframes.txt")
         self.cfg.TEMP_DIR.mkdir()
         (self.cfg.TEMP_DIR / "pair").mkdir()
         self.cfg.KEYFRAMES_DIR.mkdir()

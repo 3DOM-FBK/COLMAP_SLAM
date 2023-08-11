@@ -35,13 +35,12 @@ pip install -r requirements.txt
 Remember to install pytorch. See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
 
 ### Install COLMAP
-If you have COLMAP installed already on your PC, remeber to set the path to the COLMAP executable in `config.ini`, e.g., for linux:
+If you have COLMAP installed yet on your PC, remeber to set the path to the COLMAP executable in `config.ini`, e.g., for linux:
 
 ```bash
 COLMAP_EXE_DIR = /usr/local/bin/
 ```
 For the installation of COLMAP see the official documentation https://colmap.github.io/install.html
-
 You can find some example in the following section Usage Examples
 
 ### Run COLMAP_SLAM
@@ -54,8 +53,7 @@ python3 main.py
 
 ### Options
 
-To run COLMAP_SLAM, there are some options to be changed in `config.ini`.
-
+There are some options to change in `config.ini` to run COLMAP_SLAM:
 If you are simulating a real time process you have to set
 
 ```USE_SERVER = False
@@ -336,9 +334,14 @@ python3 main.py
 
 ### Reference
 
+Code authors: Luca Morelli and Francesco Ioli.
+
 Reference Article:
 COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
 
 Authors:
 L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
 
+### Notes
+
+- In mapper.ini keep transitivity high.
