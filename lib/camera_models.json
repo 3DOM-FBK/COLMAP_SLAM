@@ -1,0 +1,13 @@
+{
+    "0": "(SIMPLE_PINHOLE, 3)",
+    "1": "(PINHOLE, 4)",
+    "2": "(SIMPLE_RADIAL, 4)",
+    "3": "(RADIAL, 5)",
+    "4": "(OPENCV, 8)",
+    "5": "(OPENCV_FISHEYE, 8)",
+    "6": "(SIMPLE_RAFULL_OPENCVDIAL, 12)",
+    "7": "(FOV, 5)",
+    "8": "(SIMPLE_RADIAL_FISHEYE, 4)",
+    "9": "(RADIAL_FISHEYE, 5)",
+    "10": "(THIN_PRISM_FISHEYE, 12)"
+}

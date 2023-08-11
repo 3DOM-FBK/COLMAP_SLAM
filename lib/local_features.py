@@ -155,15 +155,16 @@ class LocalFeatureExtractor:
         local_feature: str = "ORB",
         local_feature_cfg: dict = None,
         n_features: int = 1024,
-        cam0_calib: str = "",
+        cam_calib : dict = {},
+        cam_types : dict = {},
     ) -> None:
         self.local_feature = local_feature
         self.detector_and_descriptor = LocalFeatures(
             local_feature, n_features, local_feature_cfg
         )
-        self.model1, self.width1, self.height1, other = cam0_calib.strip().split(",", 3)
-        params1 = other.split(",", 7)
-        self.params1 = np.array(params1).astype(np.float32)
+        #self.model1, self.width1, self.height1, other = cam0_calib.strip().split(",", 3)
+        #params1 = other.split(",", 7)
+        #self.params1 = np.array(params1).astype(np.float32)
 
     def run(self, database, keyframe_dir, image_format) -> None:
         db = db_colmap.COLMAPDatabase.connect(str(database))

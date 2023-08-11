@@ -52,6 +52,7 @@ class KeyFrameSelector:
         min_matches: int = 5,
         error_threshold: int = 4,
         iterations: int = 1000,
+        n_camera: int = 1,
 
     ) -> None:
         """
@@ -85,6 +86,11 @@ class KeyFrameSelector:
         self.min_matches=min_matches
         self.error_threshold=error_threshold
         self.iterations=iterations
+        self.n_camera=n_camera
+        if n_camera > 1:
+            for i in range(1, n_camera):
+                camera_img_path = Path(keyframes_dir).parent / Path(f"cam{i}")
+                camera_img_path.mkdir()
 
         self.realtime_viz = realtime_viz
         if self.realtime_viz:
@@ -271,10 +277,13 @@ class KeyFrameSelector:
 
         if self.median_match_dist > self.innovation_threshold_pix:
             existing_keyframe_number = len(os.listdir(self.keyframes_dir))
-            shutil.copy(
-                self.img2,
-                self.keyframes_dir / f"{utils.Id2name(existing_keyframe_number)}",
-            )
+            for c in range(self.n_camera):
+                current_img = self.img2.name
+                imgs_folder = self.img2.parent.parent
+                shutil.copy(
+                    imgs_folder / f"cam{c}" / current_img,
+                    self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+                )
             camera_id = 1
             new_keyframe = KeyFrame(
                 self.img2,

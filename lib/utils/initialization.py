@@ -2,6 +2,7 @@ import configparser
 import logging
 import os
 import shutil
+import json
 from datetime import date, datetime
 from pathlib import Path
 
@@ -77,8 +78,22 @@ class Inizialization:
         cfg.MIN_ORIENTED_RATIO = float(config["DEFAULT"]["MIN_ORIENTED_RATIO"])
         cfg.NOT_ORIENTED_KFMS = int(config["DEFAULT"]["NOT_ORIENTED_KFMS"])
 
-        # CALIBRATION
-        cfg.CAM0 = config["CALIBRATION"]["CAM0"]
+        # CALIBRATION DATA
+        cfg.N_CAMERAS = int(config["CALIBRATION"]["N_CAMERAS"])
+        cfg.CAM = []
+        for c in range(cfg.N_CAMERAS):
+            cam_type, width, height, dist_par = config["CALIBRATION"][f"CAM{c}"].strip().split(",", 3)
+            data_camera = {
+                "cam_type" : cam_type,
+                "width" : width,
+                "height" : height,
+                "dist_par": dist_par,
+            }
+            cfg.CAM.append(data_camera)
+        
+        with open("./lib/camera_models.json", 'r') as json_file:
+            json_data = json_file.read()
+            cfg.CAM_TYPES = json.loads(json_data)
 
         # KEYFRAME_SELECTION
         cfg.INNOVATION_THRESH_PIX =int(config["KEYFRAME_SELECTION"]["INNOVATION_THRESH_PIX"])
@@ -137,7 +152,6 @@ class Inizialization:
         # INCREMENTAL_RECONSTRUCTION
         cfg.MIN_KEYFRAME_FOR_INITIALIZATION = int(config["INCREMENTAL_RECONSTRUCTION"]["MIN_KEYFRAME_FOR_INITIALIZATION"])
 
-
         self.cfg = cfg
 
         return self.cfg
@@ -182,7 +196,8 @@ class Inizialization:
             shutil.rmtree(self.cfg.TEMP_DIR)
             shutil.rmtree(self.cfg.KEYFRAMES_DIR)
             shutil.rmtree(self.cfg.OUT_FOLDER)
-            os.remove("./keyframes.txt")
+            if os.path.exists("./keyframes.txt"):
+                os.remove("./keyframes.txt")
         self.cfg.TEMP_DIR.mkdir()
         (self.cfg.TEMP_DIR / "pair").mkdir()
         self.cfg.KEYFRAMES_DIR.mkdir()
@@ -190,7 +205,9 @@ class Inizialization:
 
         if self.cfg.IMGS_FROM_SERVER.exists():
             shutil.rmtree(self.cfg.IMGS_FROM_SERVER)
-        self.cfg.IMGS_FROM_SERVER.mkdir()
+        for c in range(self.cfg.N_CAMERAS):
+            camera_subfolder = self.cfg.IMGS_FROM_SERVER / f"cam{c}"
+            camera_subfolder.mkdir(parents=True)
 
         if os.path.exists("./keyframes.pkl"):
             os.remove("./keyframes.pkl")

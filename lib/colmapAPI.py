@@ -50,7 +50,9 @@ class ColmapAPI:
             database_path (str): Path to existing dataset
         '''
 
-        if first_loop == True:          
+
+
+        if first_loop == True:       
             subprocess.call(
                 [
                     self.colmap_exe,
@@ -63,8 +65,8 @@ class ColmapAPI:
                     "--ImageReader.existing_camera_id",             str(self.cfg_root_sift_first_loop["ImageReader"]["existing_camera_id"]),
                     "--ImageReader.default_focal_length_factor",    str(self.cfg_root_sift_first_loop["ImageReader"]["default_focal_length_factor"]),
                     "--ImageReader.mask_path",                      str(self.cfg_root_sift_first_loop["ImageReader"]["mask_path"]),
-                    "--ImageReader.camera_model",                   str(self.cfg_root_sift_first_loop["ImageReader"]["camera_model"]),
-                    "--ImageReader.camera_params",                  str(self.cfg_root_sift_first_loop["ImageReader"]["camera_params"]),
+                    "--ImageReader.camera_model",                   str(self.cfg_root_sift_first_loop["ImageReader"]["camera_model"]), # Placeholder, it will be substituted with calib from config.ini
+                    "--ImageReader.camera_params",                  str(self.cfg_root_sift_first_loop["ImageReader"]["camera_params"]), # Placeholder, it will be substituted with calib from config.ini
                     "--ImageReader.camera_mask_path",               str(self.cfg_root_sift_first_loop["ImageReader"]["camera_mask_path"]),
 
                     "--SiftExtraction.use_gpu",                     str(self.cfg_root_sift_first_loop["SiftExtraction"]["use_gpu"]),

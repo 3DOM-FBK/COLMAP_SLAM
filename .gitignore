@@ -8,7 +8,9 @@ colmap_imgs/
 outs/ 
 matches_plot/
 keyframes.pkl
+keyframes.txt
 points3D.pkl
+cloud.txt
 
 
 # VScode

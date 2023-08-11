@@ -23,6 +23,7 @@ from lib.colmapAPI import ColmapAPI
 from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
 from lib.keyframes import KeyFrame, KeyFrameList
 from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
+from pathlib import Path
 
 # Configuration file
 CFG_FILE = "config.ini"
@@ -64,7 +65,7 @@ keyframe_selector = KeyFrameSelector(
     keyframes_list=keyframes_list,
     last_keyframe_pointer=pointer,
     last_keyframe_delta=delta,
-    keyframes_dir=cfg.KF_DIR_BATCH,
+    keyframes_dir=cfg.KF_DIR_BATCH / "cam0",
     kfs_method=cfg.KFS_METHOD,
     geometric_verification="pydegensac",
     local_feature=cfg.KFS_LOCAL_FEATURE,
@@ -76,12 +77,13 @@ keyframe_selector = KeyFrameSelector(
     min_matches=cfg.MIN_MATCHES,
     error_threshold=cfg.RANSAC_THRESHOLD,
     iterations=cfg.RANSAC_ITERATIONS,
+    n_camera=cfg.N_CAMERAS,
 )
 
 # Setup local feature to use on keyframes
 local_feat_conf = LocalFeatConfFile(cfg)
 local_feat_extractor = LocalFeatureExtractor(
-    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM0
+    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.CAM_TYPES,
 )
 
 # If the camera coordinates are known from other sensors than gnss,
@@ -114,7 +116,7 @@ colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 timer_global = utils.AverageTimer(logger=logger)
 while True:
     # Get sorted image list available in imgs folders
-    imgs = sorted(cfg.IMGS_FROM_SERVER.glob(f"*.{cfg.IMG_FORMAT}"))
+    imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
 
     ## If using the simulator, check if process is still alive, otherwise quit
     #if cfg.USE_SERVER == False:
@@ -140,10 +142,11 @@ while True:
         # Set first frame as keyframe
         img0 = imgs[pointer]
         existing_keyframe_number = 0
-        shutil.copy(
-            img0,
-            cfg.KF_DIR_BATCH / f"{utils.Id2name(existing_keyframe_number)}",
-        )
+        for c in range(cfg.N_CAMERAS):
+            shutil.copy(
+                img0.parent.parent / f"cam{c}" / img0.name,
+                cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+            )
         camera_id = 1
         keyframes_list.add_keyframe(
             KeyFrame(
@@ -174,7 +177,7 @@ while True:
             logger.info(f"\nProcessing image pair ({img1}, {img2})")
             logger.info(f"pointer {pointer} c {c}")
 
-            old_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH))
+            old_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
 
             (
                 keyframes_list,
@@ -184,13 +187,13 @@ while True:
             ) = keyframe_selector.run(img1, img2)
 
             # Set if new keyframes are added
-            new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH))
+            new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
             if new_n_keyframes - old_n_keyframes > 0:
                 newer_imgs = True
                 kfm_batch.append(img)
                 keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
                 with open('keyframes.txt', 'a') as kfm_imgs:
-                    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH/keyframe_obj._keyframe_name}\n")
+                    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
 
                 ## Load exif data and store GNSS position if present
                 ## or load camera cooridnates from other sensors
@@ -232,7 +235,7 @@ while True:
             processed += 1
 
     # INCREMENTAL RECONSTRUCTION
-    kfrms = os.listdir(cfg.KF_DIR_BATCH)
+    kfrms = os.listdir(cfg.KF_DIR_BATCH / "cam0")
     kfrms.sort()
 
     if len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION and newer_imgs == True:
@@ -266,7 +269,7 @@ while True:
 
             adjacency_matrix = matcher.UpdateAdjacencyMatrix(
                 adjacency_matrix,
-                os.listdir(cfg.KF_DIR_BATCH),
+                os.listdir(cfg.KF_DIR_BATCH / "cam0"),
                 SEQUENTIAL_OVERLAP,
                 first_colmap_loop,
             )
@@ -400,7 +403,7 @@ while True:
                 keyframes_list=keyframes_list,
                 last_keyframe_pointer=pointer,
                 last_keyframe_delta=delta,
-                keyframes_dir=cfg.KF_DIR_BATCH,
+                keyframes_dir=cfg.KF_DIR_BATCH / "cam0",
                 kfs_method=cfg.KFS_METHOD,
                 geometric_verification="pydegensac",
                 local_feature=cfg.KFS_LOCAL_FEATURE,
@@ -408,6 +411,12 @@ while True:
                 n_features=cfg.KFS_N_FEATURES,
                 realtime_viz=True,
                 viz_res_path=SNAPSHOT_DIR,
+                innovation_threshold_pix=cfg.INNOVATION_THRESH_PIX,
+                min_matches=cfg.MIN_MATCHES,
+                error_threshold=cfg.RANSAC_THRESHOLD,
+                iterations=cfg.RANSAC_ITERATIONS,
+                n_camera=cfg.N_CAMERAS,
+
             )
 
             continue
@@ -452,7 +461,7 @@ while True:
         # Define new reference img (pointer)
         last_oriented_keyframe = np.max(list(oriented_dict.keys()))
         keyframe_obj = keyframes_list.get_keyframe_by_id(last_oriented_keyframe)
-        n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH))
+        n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
         last_keyframe = keyframes_list.get_keyframe_by_id(n_keyframes - 1)
         last_keyframe_img_id = last_keyframe.image_id
         pointer = keyframe_obj.image_id  # pointer to the last oriented image
@@ -566,7 +575,7 @@ while True:
                 keyframes_list=keyframes_list,
                 last_keyframe_pointer=pointer,
                 last_keyframe_delta=delta,
-                keyframes_dir=cfg.KF_DIR_BATCH,
+                keyframes_dir=cfg.KF_DIR_BATCH / "cam0",
                 kfs_method=cfg.KFS_METHOD,
                 geometric_verification="pydegensac",
                 local_feature=cfg.KFS_LOCAL_FEATURE,
