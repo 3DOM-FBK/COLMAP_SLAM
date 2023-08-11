@@ -170,7 +170,6 @@ class LocalFeatureExtractor:
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
 
-        #kfrms.sort()
         existing_images = dict(
             (image_id, name)
             for image_id, name in db.execute("SELECT image_id, name FROM images")
@@ -180,7 +179,7 @@ class LocalFeatureExtractor:
             imgs = os.listdir(keyframe_dir / cam)
             for img in imgs:
                 img = Path(cam) / Path(img)
-                if img not in existing_images.values():
+                if str(img.parent) + "/" + str(img.name) not in existing_images.values():
                     extract = getattr(self.detector_and_descriptor, self.local_feature)
                     kpts, descriptors = extract([keyframe_dir / img])
                     kp = kpts[img.name[: -len(image_format) - 1]]

@@ -262,7 +262,6 @@ while True:
         cameras.AssignCameras(cfg.DATABASE, len(cfg.CAM))
 
         timer.update("FEATURE EXTRACTION")
-        quit()
 
         logger.info("Sequential matcher")
 
@@ -272,6 +271,8 @@ while True:
             elif first_colmap_loop == False:
                 old_adjacency_matrix_shape = adjacency_matrix.shape[0]
 
+            ij = []
+
             adjacency_matrix = matcher.UpdateAdjacencyMatrix(
                 adjacency_matrix,
                 os.listdir(cfg.KF_DIR_BATCH / "cam0"),
@@ -279,74 +280,88 @@ while True:
                 first_colmap_loop,
             )
 
-            # matcher.PlotAdjacencyMatrix(adjacency_matrix)
+            #matcher.PlotAdjacencyMatrix(adjacency_matrix)
             keypoints, descriptors, images = import_local_features.ImportLocalFeature(
                 cfg.DATABASE
             )
             true_indices = np.where(adjacency_matrix)
 
-            for i, j in zip(true_indices[0], true_indices[1]):
-                if i > j and i > old_adjacency_matrix_shape - 1:
-                    im1 = images[j + 1]
-                    im2 = images[i + 1]
-                    matches_matrix = matcher.Matcher(
-                        descriptors[j + 1].astype(float),
-                        descriptors[i + 1].astype(float),
-                        cfg.KORNIA_MATCHER,
-                        cfg.RATIO_THRESHOLD,
-                    )
+            d = new_n_keyframes - old_n_keyframes
+            inverted_dict = {value: key for key, value in images.items()}
 
-                    if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
-                        continue
+            # Matching cam0 at different epochs
+            for l, m in zip(true_indices[0], true_indices[1]):
+                if l > m and l > old_adjacency_matrix_shape - 1:
+                    kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
+                    kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
+                    i = inverted_dict[f"cam0/{kfm2_name}"]
+                    j = inverted_dict[f"cam0/{kfm1_name}"]
+                    ij.append((i-1, j-1))
 
-                    db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
-                    db.add_matches(int(j + 1), int(i + 1), matches_matrix)
+                    # Matching between different cameras at the same epoch
+                    for c in range(1, cfg.N_CAMERAS):
+                        i = inverted_dict[f"cam{c}/{kfm1_name}"]
+                        ij.append((i-1, j-1))
+            #for k in range(d):
+            #    for c in range(len(cfg.N_CAMERAS)):
+            #        i = old_n_keyframes + k
+            #        j = i + c*d
+            #        ij.append((i, j))
 
-                    pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
-                    pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
 
-                    if pts1.shape[0] > 8:
-                        if cfg.GEOMETRIC_VERIFICATION == "ransac":
-                            F, mask = cv2.findFundamentalMat(
-                                pts1,
-                                pts2,
-                                cv2.FM_RANSAC,
-                                cfg.MAX_ERROR,
-                                cfg.CONFIDENCE,
-                                cfg.ITERATIONS,
+            for i, j in ij:
+                im1 = images[j + 1]
+                im2 = images[i + 1]
+                matches_matrix = matcher.Matcher(
+                    descriptors[j + 1].astype(float),
+                    descriptors[i + 1].astype(float),
+                    cfg.KORNIA_MATCHER,
+                    cfg.RATIO_THRESHOLD,
+                )
+                if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
+                    continue
+                db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
+                db.add_matches(int(j + 1), int(i + 1), matches_matrix)
+                pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
+                pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
+                if pts1.shape[0] > 8:
+                    if cfg.GEOMETRIC_VERIFICATION == "ransac":
+                        F, mask = cv2.findFundamentalMat(
+                            pts1,
+                            pts2,
+                            cv2.FM_RANSAC,
+                            cfg.MAX_ERROR,
+                            cfg.CONFIDENCE,
+                            cfg.ITERATIONS,
+                        )
+                    elif cfg.GEOMETRIC_VERIFICATION == "pydegensac":
+                        F, mask = pydegensac.findFundamentalMatrix(
+                            pts1,
+                            pts2,
+                            px_th=cfg.MAX_ERROR,
+                            conf=cfg.CONFIDENCE,
+                            max_iters=cfg.ITERATIONS,
+                            laf_consistensy_coef=-1,
+                            error_type="sampson",
+                            symmetric_error_check=True,
+                            enable_degeneracy_check=True,
+                        )
+                    if mask.shape[0] > 8:
+                        try:
+                            if cfg.GEOMETRIC_VERIFICATION == "pydegensac":
+                                mask = mask
+                            elif cfg.GEOMETRIC_VERIFICATION == "ransac":
+                                mask = mask[:, 0]
+                            verified_matches_matrix = matches_matrix[mask, :]
+                            db.add_two_view_geometry(
+                                int(j + 1), int(i + 1), verified_matches_matrix
                             )
-
-                        elif cfg.GEOMETRIC_VERIFICATION == "pydegensac":
-                            F, mask = pydegensac.findFundamentalMatrix(
-                                pts1,
-                                pts2,
-                                px_th=cfg.MAX_ERROR,
-                                conf=cfg.CONFIDENCE,
-                                max_iters=cfg.ITERATIONS,
-                                laf_consistensy_coef=-1,
-                                error_type="sampson",
-                                symmetric_error_check=True,
-                                enable_degeneracy_check=True,
-                            )
-
-                        if mask.shape[0] > 8:
-                            try:
-                                if cfg.GEOMETRIC_VERIFICATION == "pydegensac":
-                                    mask = mask
-                                elif cfg.GEOMETRIC_VERIFICATION == "ransac":
-                                    mask = mask[:, 0]
-                                verified_matches_matrix = matches_matrix[mask, :]
-                                db.add_two_view_geometry(
-                                    int(j + 1), int(i + 1), verified_matches_matrix
-                                )
-                            except:
-                                logger.info("No valid geometry")
-
-                        elif mask.shape[0] <= 8:
-                            logger.info("N points < 8")
-
-                    db.commit()
-                    db.close()
+                        except:
+                            logger.info("No valid geometry")
+                    elif mask.shape[0] <= 8:
+                        logger.info("N points < 8")
+                db.commit()
+                db.close()
 
         # if cfg.LOOP_CLOSURE_DETECTION == False:
         #    colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='0', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree='')
@@ -355,6 +370,8 @@ while True:
             cfg.LOOP_CLOSURE_DETECTION == True
             and cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT"
         ):
+            print("Joining this feature, please contact the author..\nQuit")
+            quit()
             colmap.SequentialMatcher(
                 database_path=cfg.DATABASE,
                 loop_closure="1",
@@ -447,150 +464,150 @@ while True:
         timer.update("MODEL CONVERSION")
         timer.print("COLMAP")
 
-        # Export cameras
-        lines, oriented_dict = export_cameras.ExportCameras(
-            cfg.OUT_DIR_BATCH / "images.txt", keyframes_list
-        )
-        if cfg.DEBUG:
-            with open(cfg.OUT_DIR_BATCH / "loc.txt", "w") as file:
-                for line in lines:
-                    file.write(line)
-
-        # Keep track of sucessfully oriented frames in the current kfm_batch
-        for image in kfm_batch:
-            keyframe_obj = keyframes_list.get_keyframe_by_image_name(image)
-            if keyframe_obj.keyframe_id in list(oriented_dict.keys()):
-                oriented_imgs_batch.append(image)
-                keyframe_obj.set_oriented()
-
-        # Define new reference img (pointer)
-        last_oriented_keyframe = np.max(list(oriented_dict.keys()))
-        keyframe_obj = keyframes_list.get_keyframe_by_id(last_oriented_keyframe)
-        n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
-        last_keyframe = keyframes_list.get_keyframe_by_id(n_keyframes - 1)
-        last_keyframe_img_id = last_keyframe.image_id
-        pointer = keyframe_obj.image_id  # pointer to the last oriented image
-        delta = last_keyframe_img_id - pointer
-
-        # Update dynamic window for sequential matching
-        if delta != 0:
-            SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP + 2 * (
-                n_keyframes - last_oriented_keyframe
-            )
-            if SEQUENTIAL_OVERLAP > MAX_SEQUENTIAL_OVERLAP:
-                SEQUENTIAL_OVERLAP = MAX_SEQUENTIAL_OVERLAP
-        else:
-            SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
-
-        oriented_dict_list = list(oriented_dict.keys())
-        oriented_dict_list.sort()
-
-        total_kfs_number = len(kfrms)
-        oriented_kfs_len = len(oriented_dict_list)
-        ori_ratio = oriented_kfs_len / total_kfs_number
-
-        logger.info(
-            f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
-        )
-
-        # Report SLAM solution in the reference system of the first image
-        ref_img_id = oriented_dict_list[0]
-        keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
-        keyframe_obj.slamX = 0.0
-        keyframe_obj.slamY = 0.0
-        keyframe_obj.slamZ = 0.0
-        q0, t0 = oriented_dict[ref_img_id][2]
-        t0 = t0.reshape((3, 1))
-        q0_quat = Quaternion(q0)
-
-        for keyframe_id in oriented_dict_list:
-            keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
-            if keyframe_id == ref_img_id:
-                pass
-            else:
-                qi, ti = oriented_dict[keyframe_id][2]
-                ti = ti.reshape((3, 1))
-                qi_quat = Quaternion(qi)
-                ti_in_q0_ref = (
-                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-                )
-                keyframe_obj.slamX = ti_in_q0_ref[0, 0]
-                keyframe_obj.slamY = ti_in_q0_ref[1, 0]
-                keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
-
-        with open("./keyframes.pkl", "wb") as f:
-            pickle.dump(keyframes_list, f)
-
-        # Report 3D points in ref system of the first image
-        with open(f"{cfg.OUT_DIR_BATCH}/points3D.txt", "r") as file:
-            lines = file.readlines()
-
-        data = []
-        for line in lines:
-            if line.startswith("#") or line.strip() == "":
-                continue
-            values = line.split()
-            x = float(values[1])
-            y = float(values[2])
-            z = float(values[3])
-            p = np.array([[x], [y], [z]])
-            p_trans = np.dot(q0_quat.rotation_matrix, p) + t0
-            data.append([p_trans[0, 0], p_trans[1, 0], p_trans[2, 0]])
-
-        with open("./points3D.pkl", "wb") as f:
-            pickle.dump(np.array(data), f)
-
-        kfm_batch = []
-        oriented_imgs_batch = []
+        ## Export cameras
+        #lines, oriented_dict = export_cameras.ExportCameras(
+        #    cfg.OUT_DIR_BATCH / "images.txt", keyframes_list
+        #)
+        #if cfg.DEBUG:
+        #    with open(cfg.OUT_DIR_BATCH / "loc.txt", "w") as file:
+        #        for line in lines:
+        #            file.write(line)
+#
+        ## Keep track of sucessfully oriented frames in the current kfm_batch
+        #for image in kfm_batch:
+        #    keyframe_obj = keyframes_list.get_keyframe_by_image_name(image)
+        #    if keyframe_obj.keyframe_id in list(oriented_dict.keys()):
+        #        oriented_imgs_batch.append(image)
+        #        keyframe_obj.set_oriented()
+#
+        ## Define new reference img (pointer)
+        #last_oriented_keyframe = np.max(list(oriented_dict.keys()))
+        #keyframe_obj = keyframes_list.get_keyframe_by_id(last_oriented_keyframe)
+        #n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
+        #last_keyframe = keyframes_list.get_keyframe_by_id(n_keyframes - 1)
+        #last_keyframe_img_id = last_keyframe.image_id
+        #pointer = keyframe_obj.image_id  # pointer to the last oriented image
+        #delta = last_keyframe_img_id - pointer
+#
+        ## Update dynamic window for sequential matching
+        #if delta != 0:
+        #    SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP + 2 * (
+        #        n_keyframes - last_oriented_keyframe
+        #    )
+        #    if SEQUENTIAL_OVERLAP > MAX_SEQUENTIAL_OVERLAP:
+        #        SEQUENTIAL_OVERLAP = MAX_SEQUENTIAL_OVERLAP
+        #else:
+        #    SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
+#
+        #oriented_dict_list = list(oriented_dict.keys())
+        #oriented_dict_list.sort()
+#
+        #total_kfs_number = len(kfrms)
+        #oriented_kfs_len = len(oriented_dict_list)
+        #ori_ratio = oriented_kfs_len / total_kfs_number
+#
+        #logger.info(
+        #    f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+        #)
+#
+        ## Report SLAM solution in the reference system of the first image
+        #ref_img_id = oriented_dict_list[0]
+        #keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
+        #keyframe_obj.slamX = 0.0
+        #keyframe_obj.slamY = 0.0
+        #keyframe_obj.slamZ = 0.0
+        #q0, t0 = oriented_dict[ref_img_id][2]
+        #t0 = t0.reshape((3, 1))
+        #q0_quat = Quaternion(q0)
+#
+        #for keyframe_id in oriented_dict_list:
+        #    keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
+        #    if keyframe_id == ref_img_id:
+        #        pass
+        #    else:
+        #        qi, ti = oriented_dict[keyframe_id][2]
+        #        ti = ti.reshape((3, 1))
+        #        qi_quat = Quaternion(qi)
+        #        ti_in_q0_ref = (
+        #            -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+        #        )
+        #        keyframe_obj.slamX = ti_in_q0_ref[0, 0]
+        #        keyframe_obj.slamY = ti_in_q0_ref[1, 0]
+        #        keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
+#
+        #with open("./keyframes.pkl", "wb") as f:
+        #    pickle.dump(keyframes_list, f)
+#
+        ## Report 3D points in ref system of the first image
+        #with open(f"{cfg.OUT_DIR_BATCH}/points3D.txt", "r") as file:
+        #    lines = file.readlines()
+#
+        #data = []
+        #for line in lines:
+        #    if line.startswith("#") or line.strip() == "":
+        #        continue
+        #    values = line.split()
+        #    x = float(values[1])
+        #    y = float(values[2])
+        #    z = float(values[3])
+        #    p = np.array([[x], [y], [z]])
+        #    p_trans = np.dot(q0_quat.rotation_matrix, p) + t0
+        #    data.append([p_trans[0, 0], p_trans[1, 0], p_trans[2, 0]])
+#
+        #with open("./points3D.pkl", "wb") as f:
+        #    pickle.dump(np.array(data), f)
+#
+        #kfm_batch = []
+        #oriented_imgs_batch = []
         first_colmap_loop = False
-
-        # REINITIALIZE SLAM
-        if (
-            ori_ratio < cfg.MIN_ORIENTED_RATIO
-            or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
-        ):
-            logger.info(
-                f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
-            )
-            logger.info("Not enough oriented images")
-
-            cfg = init.new_batch_solution()
-            first_colmap_loop = True
-            for im in processed_imgs:
-                os.remove(cfg.CURRENT_DIR / im)
-
-            # Setup logging level
-            LOG_LEVEL = logging.INFO
-            utils.Inizialization.setup_logger(LOG_LEVEL)
-            logger = logging.getLogger("ColmapSLAM")
-
-            # Initialize variables
-            keyframes_list = KeyFrameList()
-            processed_imgs = []
-            oriented_imgs_batch = []
-            pointer = 0
-            delta = 0
-            first_colmap_loop = True
-            one_time = False
-            reference_imgs = []
-
-            # Setup keyframe selector
-            kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
-            keyframe_selector = KeyFrameSelector(
-                keyframes_list=keyframes_list,
-                last_keyframe_pointer=pointer,
-                last_keyframe_delta=delta,
-                keyframes_dir=cfg.KF_DIR_BATCH / "cam0",
-                kfs_method=cfg.KFS_METHOD,
-                geometric_verification="pydegensac",
-                local_feature=cfg.KFS_LOCAL_FEATURE,
-                local_feature_cfg=kf_selection_detecor_config,
-                n_features=cfg.KFS_N_FEATURES,
-                realtime_viz=True,
-                viz_res_path=SNAPSHOT_DIR,
-            )
-
-            continue
+#
+        ## REINITIALIZE SLAM
+        #if (
+        #    ori_ratio < cfg.MIN_ORIENTED_RATIO
+        #    or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
+        #):
+        #    logger.info(
+        #        f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+        #    )
+        #    logger.info("Not enough oriented images")
+#
+        #    cfg = init.new_batch_solution()
+        #    first_colmap_loop = True
+        #    for im in processed_imgs:
+        #        os.remove(cfg.CURRENT_DIR / im)
+#
+        #    # Setup logging level
+        #    LOG_LEVEL = logging.INFO
+        #    utils.Inizialization.setup_logger(LOG_LEVEL)
+        #    logger = logging.getLogger("ColmapSLAM")
+#
+        #    # Initialize variables
+        #    keyframes_list = KeyFrameList()
+        #    processed_imgs = []
+        #    oriented_imgs_batch = []
+        #    pointer = 0
+        #    delta = 0
+        #    first_colmap_loop = True
+        #    one_time = False
+        #    reference_imgs = []
+#
+        #    # Setup keyframe selector
+        #    kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
+        #    keyframe_selector = KeyFrameSelector(
+        #        keyframes_list=keyframes_list,
+        #        last_keyframe_pointer=pointer,
+        #        last_keyframe_delta=delta,
+        #        keyframes_dir=cfg.KF_DIR_BATCH / "cam0",
+        #        kfs_method=cfg.KFS_METHOD,
+        #        geometric_verification="pydegensac",
+        #        local_feature=cfg.KFS_LOCAL_FEATURE,
+        #        local_feature_cfg=kf_selection_detecor_config,
+        #        n_features=cfg.KFS_N_FEATURES,
+        #        realtime_viz=True,
+        #        viz_res_path=SNAPSHOT_DIR,
+        #    )
+#
+        #    continue
 
     timer_global.update(f"{len(kfrms)}")
     time.sleep(cfg.SLEEP_TIME)
