@@ -278,6 +278,7 @@ class KeyFrameSelector:
         if self.median_match_dist > self.innovation_threshold_pix:
             existing_keyframe_number = len(os.listdir(self.keyframes_dir))
             for c in range(self.n_camera):
+                print("camera", c)
                 current_img = self.img2.name
                 imgs_folder = self.img2.parent.parent
                 shutil.copy(
@@ -315,6 +316,15 @@ class KeyFrameSelector:
 
     def run(self, img1: Union[str, Path], img2: Union[str, Path]):
         self.timer = utils.AverageTimer()
+
+        #read = False
+        #while read == False:
+        #    try:
+        #i1 = cv2.imread(str(img1))
+        #i2 = cv2.imread(str(img2))
+        #        break
+        #    except:
+        #        print("Failed reading images (opencv). Trying again ..")
 
         try:
             if not self.extract_features(img1, img2):

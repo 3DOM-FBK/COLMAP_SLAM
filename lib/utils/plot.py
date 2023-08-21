@@ -14,7 +14,9 @@ def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, he
     if os.path.exists(path_to_kfm_obj) and os.path.exists(path_to_pts_obj):
         with open(path_to_kfm_obj, "rb") as f:
             my_list = pickle.load(f)
-            for obj in my_list:
+            
+            for i in range(len(my_list)):
+                obj = my_list.__getitem__(i)
                 if obj.slamX != "-":
                     X.append(float(obj.slamX))
                 if obj.slamZ != "-":
@@ -29,6 +31,9 @@ def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, he
         else:
             MAX = MAX_Z
             buffer = height
+        
+        if int(MAX) == 0: # To avoid division by zero
+            return img
 
         X = -(np.array(X))/MAX*(buffer/2-PAD) + int(width/2)
         Z = (np.array(Z))/MAX*(buffer/2-PAD) + int(height/2)

@@ -326,15 +326,16 @@ python3 main.py
 - [x] Add brute-force kornia matcher
 - [ ] Add SuperGlue
 - [ ] From Kornia add Loftr, Adalam
-- [ ] Join multi camera code
+- [x] Join multi camera code
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
 - [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
 - [ ] Example testing
 
-### Reference
+For performance optimization:
+- [ ] Do not save txt reconstruction (only binary)
 
-Code authors: Luca Morelli and Francesco Ioli.
+### Reference
 
 Reference Article:
 COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.

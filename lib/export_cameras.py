@@ -21,8 +21,10 @@ def ExportCameras(external_cameras_path, keyframes_list):
                     " ", 9
                 )
 
-                keyframe_obj = keyframes_list.get_keyframe_by_name(name)
+                cam_number, keyframe = name.split("/", 1)
+                keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe)
                 # keyframe_obj = list(filter(lambda obj: obj.keyframe_name == name, keyframes_list))[0]
+                
                 q = np.array([float(qw), float(qx), float(qy), float(qz)])
                 t = np.array([[float(tx)], [float(ty)], [float(tz)]])
                 q_matrix = quaternion.Quaternion(q).transformation_matrix
@@ -34,7 +36,7 @@ def ExportCameras(external_cameras_path, keyframes_list):
                 lines.append(
                     "{} {} {} {} {} {} {} {} 50 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
                         name,
-                        keyframe_obj.image_name,
+                        "imgs/" + cam_number + "/" + str(keyframe_obj.image_name.name),
                         camera_location[0, 0],
                         camera_location[1, 0],
                         camera_location[2, 0],
@@ -59,9 +61,8 @@ def ExportCameras(external_cameras_path, keyframes_list):
                         "1",
                     )
                 )
-                id_camera = int(name[:-4])
-                camera_dict[id_camera] = (
-                    name,
+                #id_camera = int(name[5:-4])
+                camera_dict[name] = (
                     (
                         camera_location[0, 0],
                         camera_location[1, 0],
@@ -69,5 +70,5 @@ def ExportCameras(external_cameras_path, keyframes_list):
                     ),
                     (q, t),
                 )
-
+    
     return lines, camera_dict
