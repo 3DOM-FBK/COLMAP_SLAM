@@ -91,7 +91,3 @@ COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
 
 Authors:
 L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
-
-### Notes
-
-- In mapper.ini keep transitivity high.

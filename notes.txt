@@ -1,0 +1,3 @@
+### Notes
+
+- In mapper.ini keep transitivity high.
