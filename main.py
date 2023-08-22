@@ -481,12 +481,15 @@ while True:
 
         # Keep track of sucessfully oriented frames in the current kfm_batch
         oriented_kfs_len = 0
+
         for keyframe in keyframes_list: # for image in kfm_batch
              if "cam0/" + keyframe.keyframe_name in list(oriented_dict.keys()):
                 keyframe.set_oriented
                 oriented_kfs_len += 1
-                #print(keyframe.image_name, keyframe.image_id, keyframe.keyframe_id, keyframe.keyframe_name)
-                #quit()
+
+                #for c in range(1, cfg.N_CAMERAS):
+                #    if f"cam{c}/" + keyframe.keyframe_name in list(oriented_dict.keys()):
+                #        keyframe.slave_cameras[c] = oriented_dict[f"cam{c}/" + keyframe.keyframe_name]
      
         ## Define new reference img (pointer)
         #print(list(oriented_dict.keys()))
@@ -516,6 +519,35 @@ while True:
         else:
             SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
 
+        ####
+        ####
+        with open("buttare100.txt", "w") as b:
+            q0, t0 = oriented_dict[list(oriented_dict.keys())[0]][1]
+            t0 = t0.reshape((3, 1))
+            q0_quat = Quaternion(q0)
+            for key in oriented_dict:
+                cam, keyframe_name = key.split("/", 1)
+                qi, ti = oriented_dict[key][1]
+                ti = ti.reshape((3, 1))
+                qi_quat = Quaternion(qi)
+                ti_in_q0_ref = (
+                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+                )
+
+                keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe_name)
+                camera = int(cam[3:])
+                if camera == 0:
+                    keyframe_obj.slamX = ti_in_q0_ref[0, 0]
+                    keyframe_obj.slamY = ti_in_q0_ref[1, 0]
+                    keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
+                else:
+                    keyframe_obj.slave_cameras_POS[camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+                
+                b.write("{},{},{}\n".format(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0]))
+
+        ####
+        ####
+
         oriented_dict_cam0 = {}
         for key in oriented_dict:
             cam, name = key.split("/", 1)
@@ -536,34 +568,98 @@ while True:
             f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
         )
 
-        # Report SLAM solution in the reference system of the first image
-        ref_img_id = oriented_dict_list[0]
-        keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
-        keyframe_obj.slamX = 0.0
-        keyframe_obj.slamY = 0.0
-        keyframe_obj.slamZ = 0.0
-        q0, t0 = oriented_dict[ref_img_id][1]
-        t0 = t0.reshape((3, 1))
-        q0_quat = Quaternion(q0)
+        ## Report SLAM solution in the reference system of the first image
+        #ref_img_id = oriented_dict_list[0]
+        #keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
+        #keyframe_obj.slamX = 0.0
+        #keyframe_obj.slamY = 0.0
+        #keyframe_obj.slamZ = 0.0
+        #q0, t0 = oriented_dict[ref_img_id][1]
+        #t0 = t0.reshape((3, 1))
+        #q0_quat = Quaternion(q0)
+#
+        #out1 = open('luca1.txt', 'w')
+        #out2 = open('luca2.txt', 'w')
+        #for keyframe_id in oriented_dict_list:
+        #    keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
+        #    if keyframe_id == ref_img_id:
+        #        pass
+        #    else:
+        #        qi, ti = oriented_dict[keyframe_id][1]
+        #        ti = ti.reshape((3, 1))
+        #        qi_quat = Quaternion(qi)
+        #        ti_in_q0_ref = (
+        #            -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+        #        )
+        #        
+        #        out1.write("{},{},{}\n".format(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0]))
+        #        keyframe_obj.slamX = ti_in_q0_ref[0, 0]
+        #        keyframe_obj.slamY = ti_in_q0_ref[1, 0]
+        #        keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
+        #        #print(keyframe_obj.slamX)
+        #        #print(keyframe_obj.slamY)
+        #        #print(keyframe_obj.slamZ)
+        #        if cfg.N_CAMERAS > 1:
+        #            for c in range(1, cfg.N_CAMERAS):
+        #                if keyframe_obj.slave_cameras != {}:
+        #                    qc, tc = keyframe_obj.slave_cameras[c][1]
+        #                    tc = tc.reshape((3, 1))
+        #                    qc_quat = Quaternion(qc)
+        #                    tc_in_q0_ref = (
+        #                        -np.dot((q0_quat * qc_quat.inverse).rotation_matrix, tc) + t0
+        #                    )
+        #                    keyframe_obj.slave_cameras_POS[c] = (tc_in_q0_ref[0, 0], tc_in_q0_ref[1, 0], tc_in_q0_ref[2, 0])
+        #                    out2.write("{},{},{}\n".format(tc_in_q0_ref[0, 0], tc_in_q0_ref[1, 0], tc_in_q0_ref[2, 0]))
+#
+        #out1.close()
+        #out2.close()
+        
 
-        for keyframe_id in oriented_dict_list:
-            keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
-            if keyframe_id == ref_img_id:
-                pass
-            else:
-                qi, ti = oriented_dict[keyframe_id][1]
-                ti = ti.reshape((3, 1))
-                qi_quat = Quaternion(qi)
-                ti_in_q0_ref = (
-                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-                )
-                keyframe_obj.slamX = ti_in_q0_ref[0, 0]
-                keyframe_obj.slamY = ti_in_q0_ref[1, 0]
-                keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
-                #print(keyframe_obj.slamX)
-                #print(keyframe_obj.slamY)
-                #print(keyframe_obj.slamZ)
 
+        # Set scale factor
+        if cfg.N_CAMERAS > 1:
+            baselines = []
+            for keyframe_id in oriented_dict_list:
+                keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
+                x0 = keyframe_obj.slamX
+                y0 = keyframe_obj.slamY
+                z0 = keyframe_obj.slamZ
+                try:
+                    x1 = keyframe_obj.slave_cameras_POS[1][0]
+                    y1 = keyframe_obj.slave_cameras_POS[1][1]
+                    z1 = keyframe_obj.slave_cameras_POS[1][2]
+                    d = ((x0-x1)**2 + (y0-y1)**2 + (z0-z1)**2)**0.5
+                    baselines.append(d)
+                except:
+                    pass
+            #print(baselines)
+            #print(np.mean(baselines))
+            scale = cfg.BASELINE_CAM0_CAM1 / np.mean(baselines)
+        else:
+            scale = 1
+        
+        print("mean", np.mean(np.array(baselines)*scale))
+        print("std", np.std(np.array(baselines)*scale))
+        
+        # Apply scale factor
+        with open("./scaled_keyframes1.txt", 'w') as out1, open("./scaled_keyframes2.txt", 'w') as out2:
+            for keyframe_id in oriented_dict_list:
+                keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
+                keyframe_obj.slamX = keyframe_obj.slamX * scale
+                keyframe_obj.slamY = keyframe_obj.slamY * scale
+                keyframe_obj.slamZ = keyframe_obj.slamZ * scale
+                out1.write(f"{keyframe_id}_0,{keyframe_obj.slamX},{keyframe_obj.slamY},{keyframe_obj.slamZ}\n")
+                for c in range(1, cfg.N_CAMERAS):
+                    try:
+                        x = keyframe_obj.slave_cameras_POS[c][0] * scale
+                        y = keyframe_obj.slave_cameras_POS[c][1] * scale
+                        z = keyframe_obj.slave_cameras_POS[c][2] * scale
+                        keyframe_obj.slave_cameras_POS[c] = (x, y, z)
+                        out2.write(f"{keyframe_id}_{c},{x},{y},{z}\n")
+                    except:
+                        pass
+
+        # Save keyframes
         with open("./keyframes.pkl", "wb") as f:
             pickle.dump(keyframes_list, f)
 

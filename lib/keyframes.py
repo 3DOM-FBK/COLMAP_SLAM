@@ -23,6 +23,10 @@ class KeyFrame:
         self.slamY = "-"
         self.slamZ = "-"
 
+        # Position slave cameras
+        #self.slave_cameras = {}
+        self.slave_cameras_POS = {}
+
     @property
     def image_name(self):
         return self._image_name

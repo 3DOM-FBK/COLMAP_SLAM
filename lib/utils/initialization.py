@@ -91,6 +91,9 @@ class Inizialization:
             }
             cfg.CAM.append(data_camera)
         
+        if cfg.N_CAMERAS > 1:
+            cfg.BASELINE_CAM0_CAM1 = float(config["CALIBRATION"]["BASELINE_CAM0_CAM1"])
+        
         with open("./lib/camera_models.json", 'r') as json_file:
             json_data = json_file.read()
             json_data = json.loads(json_data)
