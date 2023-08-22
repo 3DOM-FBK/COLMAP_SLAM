@@ -519,34 +519,33 @@ while True:
         else:
             SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
 
-        ####
-        ####
-        with open("buttare100.txt", "w") as b:
-            q0, t0 = oriented_dict[list(oriented_dict.keys())[0]][1]
-            t0 = t0.reshape((3, 1))
-            q0_quat = Quaternion(q0)
-            for key in oriented_dict:
-                cam, keyframe_name = key.split("/", 1)
-                qi, ti = oriented_dict[key][1]
-                ti = ti.reshape((3, 1))
-                qi_quat = Quaternion(qi)
-                ti_in_q0_ref = (
-                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-                )
 
-                keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe_name)
-                camera = int(cam[3:])
-                if camera == 0:
-                    keyframe_obj.slamX = ti_in_q0_ref[0, 0]
-                    keyframe_obj.slamY = ti_in_q0_ref[1, 0]
-                    keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
-                else:
-                    keyframe_obj.slave_cameras_POS[camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
-                
-                b.write("{},{},{}\n".format(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0]))
-
-        ####
-        ####
+        ## Report SLAM solution in the reference system of the first image
+        ref_img_id = list(oriented_dict.keys())[0]
+        #keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
+        #keyframe_obj.slamX = 0.0
+        #keyframe_obj.slamY = 0.0
+        #keyframe_obj.slamZ = 0.0
+        q0, t0 = oriented_dict[ref_img_id][1]
+        t0 = t0.reshape((3, 1))
+        q0_quat = Quaternion(q0)
+        for key in oriented_dict:
+            cam, keyframe_name = key.split("/", 1)
+            qi, ti = oriented_dict[key][1]
+            ti = ti.reshape((3, 1))
+            qi_quat = Quaternion(qi)
+            ti_in_q0_ref = (
+                -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+            )
+            keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe_name)
+            camera = int(cam[3:])
+            if camera == 0:
+                keyframe_obj.slamX = ti_in_q0_ref[0, 0]
+                keyframe_obj.slamY = ti_in_q0_ref[1, 0]
+                keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
+            else:
+                keyframe_obj.slave_cameras_POS[camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+            
 
         oriented_dict_cam0 = {}
         for key in oriented_dict:
@@ -567,55 +566,7 @@ while True:
         logger.info(
             f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
         )
-
-        ## Report SLAM solution in the reference system of the first image
-        #ref_img_id = oriented_dict_list[0]
-        #keyframe_obj = keyframes_list.get_keyframe_by_id(ref_img_id)
-        #keyframe_obj.slamX = 0.0
-        #keyframe_obj.slamY = 0.0
-        #keyframe_obj.slamZ = 0.0
-        #q0, t0 = oriented_dict[ref_img_id][1]
-        #t0 = t0.reshape((3, 1))
-        #q0_quat = Quaternion(q0)
-#
-        #out1 = open('luca1.txt', 'w')
-        #out2 = open('luca2.txt', 'w')
-        #for keyframe_id in oriented_dict_list:
-        #    keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
-        #    if keyframe_id == ref_img_id:
-        #        pass
-        #    else:
-        #        qi, ti = oriented_dict[keyframe_id][1]
-        #        ti = ti.reshape((3, 1))
-        #        qi_quat = Quaternion(qi)
-        #        ti_in_q0_ref = (
-        #            -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-        #        )
-        #        
-        #        out1.write("{},{},{}\n".format(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0]))
-        #        keyframe_obj.slamX = ti_in_q0_ref[0, 0]
-        #        keyframe_obj.slamY = ti_in_q0_ref[1, 0]
-        #        keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
-        #        #print(keyframe_obj.slamX)
-        #        #print(keyframe_obj.slamY)
-        #        #print(keyframe_obj.slamZ)
-        #        if cfg.N_CAMERAS > 1:
-        #            for c in range(1, cfg.N_CAMERAS):
-        #                if keyframe_obj.slave_cameras != {}:
-        #                    qc, tc = keyframe_obj.slave_cameras[c][1]
-        #                    tc = tc.reshape((3, 1))
-        #                    qc_quat = Quaternion(qc)
-        #                    tc_in_q0_ref = (
-        #                        -np.dot((q0_quat * qc_quat.inverse).rotation_matrix, tc) + t0
-        #                    )
-        #                    keyframe_obj.slave_cameras_POS[c] = (tc_in_q0_ref[0, 0], tc_in_q0_ref[1, 0], tc_in_q0_ref[2, 0])
-        #                    out2.write("{},{},{}\n".format(tc_in_q0_ref[0, 0], tc_in_q0_ref[1, 0], tc_in_q0_ref[2, 0]))
-#
-        #out1.close()
-        #out2.close()
-        
-
-
+  
         # Set scale factor
         if cfg.N_CAMERAS > 1:
             baselines = []

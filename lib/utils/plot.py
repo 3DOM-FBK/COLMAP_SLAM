@@ -32,8 +32,8 @@ def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, he
             MAX = MAX_Z
             buffer = height
         
-        if int(MAX) == 0: # To avoid division by zero
-            return img
+        #if int(MAX) == 0: # To avoid division by zero
+        #    return img
 
         X = -(np.array(X))/MAX*(buffer/2-PAD) + int(width/2)
         Z = (np.array(Z))/MAX*(buffer/2-PAD) + int(height/2)

@@ -317,14 +317,15 @@ class KeyFrameSelector:
     def run(self, img1: Union[str, Path], img2: Union[str, Path]):
         self.timer = utils.AverageTimer()
 
-        #read = False
-        #while read == False:
-        #    try:
-        #i1 = cv2.imread(str(img1))
-        #i2 = cv2.imread(str(img2))
-        #        break
-        #    except:
-        #        print("Failed reading images (opencv). Trying again ..")
+        read = False
+        while read == False:
+            try:
+                i1 = cv2.cvtColor(cv2.imread(str(img1)), cv2.COLOR_BGR2RGB)
+                i2 = cv2.cvtColor(cv2.imread(str(img2)), cv2.COLOR_BGR2RGB)
+                read = True
+            except:
+                print("Failed reading images (opencv). Trying again ..")
+                
 
         try:
             if not self.extract_features(img1, img2):
