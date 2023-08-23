@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 0
+SKIP = 50
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,

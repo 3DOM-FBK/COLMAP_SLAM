@@ -8,6 +8,12 @@ Monocular and multicamera scenario are supported. We are joining an other reposi
 
 Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to [COLMAP](https://github.com/colmap/colmap)
 
+| Local Feature      | Supported | Matcher     | Supported |
+|----------          |---------- |----------   |---------- |
+| RootSIFT           | yes       | Brute Force | yes       |
+| ORB                | yes       | SuperGlue   | no        |
+| Key.Net + HardNet8 | yes       | LightGlue   | no        |
+
 ## EuRoC
 
 Download a dataset from [https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) and unzip it in the `raw_data` folder. For instance, for Machine Hall 01 use only cam0.
