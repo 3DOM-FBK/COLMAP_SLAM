@@ -12,6 +12,8 @@ from easydict import EasyDict as edict
 from lib import db_colmap, cameras
 from lib.thirdparty.alike.alike import ALike, configs
 
+from lib.thirdparty.SuperGlue.models.matching import Matching
+
 
 class LocalFeatures:
     def __init__(
@@ -43,6 +45,24 @@ class LocalFeatures:
         elif self.method == "KeyNetAffNetHardNet":
             self.kornia_cfg = cfg
             self.device = torch.device("cuda")  # TODO set to cuda
+
+        if self.method == "SuperGlue":
+            self.superglue_cfg = cfg
+            device = 'cuda'
+            config = {
+                'superpoint': {
+                    'nms_radius': cfg.nms_radius,
+                    'keypoint_threshold': cfg.keypoint_threshold,
+                    'max_keypoints': n_features
+                },
+                'superglue': {
+                    'weights': cfg.weights,
+                    'sinkhorn_iterations': cfg.sinkhorn_iterations,
+                    'match_threshold': cfg.match_threshold,
+                }
+            }
+            matching = Matching(config).eval().to(device)
+            self.matcher = matching
 
     def ORB(self, images: List[Path]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         for im_path in images:
@@ -106,6 +126,12 @@ class LocalFeatures:
 
         return self.kpts, self.descriptors
 
+    def SuperGlue(self, images: List[Path]):
+        self.kpts = {}
+        self.descriptors = {}
+
+        return self.kpts, self.descriptors
+
 
 def LocalFeatConfFile(cfg_edict) -> edict:
     local_feature = cfg_edict.LOCAL_FEAT_LOCAL_FEATURE
@@ -142,6 +168,17 @@ def LocalFeatConfFile(cfg_edict) -> edict:
     elif local_feature == "RootSIFT":
         cfg_dict = edict({})
 
+    elif local_feature == "SuperGlue":
+        cfg_dict = edict(
+            {
+            'nms_radius': cfg_edict.SUPERGLUE_NMS_RADIUS,
+            'keypoint_threshold': cfg_edict.SUPERGLUE_KEYPOINT_THRESHOLD,
+            'weights': cfg_edict.SUPERGLUE_WEIGHTS,
+            'sinkhorn_iterations': cfg_edict.SUPERGLUE_SINKHORN_ITERATIONS,
+            'match_threshold': cfg_edict.SUPERGLUE_MATCH_THRESHOLD,
+            }
+        )
+
     else:
         print("In LocalFeatConfFile() in local_features.py missing local feat")
         quit()
@@ -167,6 +204,7 @@ class LocalFeatureExtractor:
 
 
     def run(self, database, keyframe_dir, image_format) -> None:
+        
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
 
@@ -180,31 +218,35 @@ class LocalFeatureExtractor:
             for img in imgs:
                 img = Path(cam) / Path(img)
                 if str(img.parent) + "/" + str(img.name) not in existing_images.values():
-                    extract = getattr(self.detector_and_descriptor, self.local_feature)
-                    kpts, descriptors = extract([keyframe_dir / img])
-                    kp = kpts[img.name[: -len(image_format) - 1]]
-                    desc = descriptors[img.name[: -len(image_format) - 1]]
-
-                    kp = kp[:, 0:2]
-
-                    desc_len = np.shape(desc)[1]
-                    zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
-                    desc = np.append(desc, zero_matrix, axis=1)
-                    desc.astype(np.float32)
-                    desc = np.absolute(desc)
-
-                    desc = desc * 512 / np.linalg.norm(desc, axis=1).reshape((-1, 1))
-                    desc = np.round(desc)
-                    desc = np.array(desc, dtype=np.uint8)
-
-                    one_matrix = np.ones((np.shape(kp)[0], 1))
-                    kp = np.append(kp, one_matrix, axis=1)
-                    zero_matrix = np.zeros((np.shape(kp)[0], 3))
-                    kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
-
-                    img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
-                    db.add_keypoints(img_id, kp)
-                    db.add_descriptors(img_id, desc)
-                    db.commit()
+                    if self.local_feature == "SuperGlue":
+                        img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                        db.commit()
+                    else:
+                        extract = getattr(self.detector_and_descriptor, self.local_feature)
+                        kpts, descriptors = extract([keyframe_dir / img])
+                        kp = kpts[img.name[: -len(image_format) - 1]]
+                        desc = descriptors[img.name[: -len(image_format) - 1]]
+    
+                        kp = kp[:, 0:2]
+    
+                        desc_len = np.shape(desc)[1]
+                        zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
+                        desc = np.append(desc, zero_matrix, axis=1)
+                        desc.astype(np.float32)
+                        desc = np.absolute(desc)
+    
+                        desc = desc * 512 / np.linalg.norm(desc, axis=1).reshape((-1, 1))
+                        desc = np.round(desc)
+                        desc = np.array(desc, dtype=np.uint8)
+    
+                        one_matrix = np.ones((np.shape(kp)[0], 1))
+                        kp = np.append(kp, one_matrix, axis=1)
+                        zero_matrix = np.zeros((np.shape(kp)[0], 3))
+                        kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
+    
+                        img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                        db.add_keypoints(img_id, kp)
+                        db.add_descriptors(img_id, desc)
+                        db.commit()
 
         db.close()

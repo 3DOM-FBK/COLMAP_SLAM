@@ -4,6 +4,11 @@ import matplotlib.pyplot as plt
 from easydict import EasyDict as edict
 from kornia import feature
 
+from pathlib import Path
+from typing import List, Tuple, Union
+
+from lib.thirdparty.SuperGlue.models.utils import read_image
+
 def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold):
     torch_desc_1 = torch.from_numpy(desc_1)
     torch_desc_2 = torch.from_numpy(desc_2)
@@ -11,6 +16,23 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold):
     match_distances, matches_matrix = matcher.forward(torch_desc_1, torch_desc_2)
 
     return matches_matrix
+
+def SuperGlue(keyframe_dir : List[Path], im1 : str, im2 : str, matching):
+
+    # Load the image pair.
+    image0, inp0, scales0 = read_image(
+        keyframe_dir / im1, "cuda", [-1], 0, False)
+    image1, inp1, scales1 = read_image(
+        keyframe_dir / im2, "cuda", [-1], 0, False)
+
+    # Perform the matching.
+    pred = matching({'image0': inp0, 'image1': inp1})
+    #pred = {k: v[0].cpu().numpy() for k, v in pred.items()}
+    pred = {k: v[0].cpu().detach().numpy() for k, v in pred.items()}
+    kpts0, kpts1 = pred['keypoints0'], pred['keypoints1']
+    matches, conf = pred['matches0'], pred['matching_scores0']
+
+    return kpts0, kpts1, matches
 
 
 def UpdateAdjacencyMatrix(adjacency_matrix : np.ndarray[bool], kfm_batch : list, overlap : int, first_loop: bool) -> np.ndarray[bool]:

@@ -11,8 +11,12 @@ Note the repository is an adaptation of COLMAP to work in real-time, for code an
 | Local Feature      | Supported | Matcher     | Supported |
 |----------          |---------- |----------   |---------- |
 | RootSIFT           | yes       | Brute Force | yes       |
-| ORB                | yes       | SuperGlue   | no        |
-| Key.Net + HardNet8 | yes       | LightGlue   | no        |
+| ORB                | yes       | SuperGlue   | not yet   |
+| Key.Net + HardNet8 | yes       | LightGlue   | not yet   |
+| ALIKE              | yes       | LoFTR       | not yet   |
+| ALIKED             | not yet   | ADALAM      | not yet   |
+| DeDoDe             | not yet   | ...         |           |
+
 
 ## EuRoC
 

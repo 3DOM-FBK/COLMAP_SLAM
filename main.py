@@ -302,66 +302,91 @@ while True:
                     for c in range(1, cfg.N_CAMERAS):
                         i = inverted_dict[f"cam{c}/{kfm1_name}"]
                         ij.append((i-1, j-1))
-            #for k in range(d):
-            #    for c in range(len(cfg.N_CAMERAS)):
-            #        i = old_n_keyframes + k
-            #        j = i + c*d
-            #        ij.append((i, j))
 
 
             for i, j in ij:
                 im1 = images[j + 1]
                 im2 = images[i + 1]
-                matches_matrix = matcher.Matcher(
-                    descriptors[j + 1].astype(float),
-                    descriptors[i + 1].astype(float),
-                    cfg.KORNIA_MATCHER,
-                    cfg.RATIO_THRESHOLD,
-                )
-                if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
-                    continue
-                db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
-                db.add_matches(int(j + 1), int(i + 1), matches_matrix)
-                pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
-                pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
-                if pts1.shape[0] > 8:
-                    if cfg.GEOMETRIC_VERIFICATION == "ransac":
-                        F, mask = cv2.findFundamentalMat(
-                            pts1,
-                            pts2,
-                            cv2.FM_RANSAC,
-                            cfg.MAX_ERROR,
-                            cfg.CONFIDENCE,
-                            cfg.ITERATIONS,
-                        )
-                    elif cfg.GEOMETRIC_VERIFICATION == "pydegensac":
-                        F, mask = pydegensac.findFundamentalMatrix(
-                            pts1,
-                            pts2,
-                            px_th=cfg.MAX_ERROR,
-                            conf=cfg.CONFIDENCE,
-                            max_iters=cfg.ITERATIONS,
-                            laf_consistensy_coef=-1,
-                            error_type="sampson",
-                            symmetric_error_check=True,
-                            enable_degeneracy_check=True,
-                        )
-                    if mask.shape[0] > 8:
-                        try:
-                            if cfg.GEOMETRIC_VERIFICATION == "pydegensac":
-                                mask = mask
-                            elif cfg.GEOMETRIC_VERIFICATION == "ransac":
-                                mask = mask[:, 0]
-                            verified_matches_matrix = matches_matrix[mask, :]
-                            db.add_two_view_geometry(
-                                int(j + 1), int(i + 1), verified_matches_matrix
+
+                if cfg.LOCAL_FEAT_LOCAL_FEATURE == "SuperGlue":
+                    kpts1, kpts2, matches2 = matcher.SuperGlue(cfg.KF_DIR_BATCH, im1, im2, local_feat_extractor.detector_and_descriptor.matcher)
+                    kpts1 = np.hstack((kpts1, np.zeros((kpts1.shape[0],4))))
+                    kpts2 = np.hstack((kpts2, np.zeros((kpts2.shape[0],4))))
+                    matches1 = np.arange(len(matches2))
+                    mask = matches2 != -1
+                    matches1 = matches1[mask]
+                    matches2 = matches2[mask]
+                    matches_matrix = np.hstack((matches1.reshape(-1,1), matches2.reshape(-1,1)))
+
+                    if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
+                        continue
+                    
+                    db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
+                    keypoints = dict(
+                                    (image_id, db_colmap.blob_to_array(data, np.float32, (-1, 1)))
+                                    for image_id, data in db.execute(
+                                        "SELECT image_id, data FROM keypoints"))
+
+                    if int(j + 1) not in keypoints.keys():
+                        db.add_keypoints(int(j + 1), kpts1)
+                    if int(i + 1) not in keypoints.keys():
+                        db.add_keypoints(int(i + 1), kpts2)
+
+                    db.add_two_view_geometry(int(j + 1), int(i + 1), matches_matrix)
+                    db.commit()
+                    db.close()
+                
+                else:
+                    matches_matrix = matcher.Matcher(
+                        descriptors[j + 1].astype(float),
+                        descriptors[i + 1].astype(float),
+                        cfg.KORNIA_MATCHER,
+                        cfg.RATIO_THRESHOLD,
+                    )
+                    if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
+                        continue
+                    db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
+                    db.add_matches(int(j + 1), int(i + 1), matches_matrix)
+                    pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
+                    pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
+                    if pts1.shape[0] > 8:
+                        if cfg.GEOMETRIC_VERIFICATION == "ransac":
+                            F, mask = cv2.findFundamentalMat(
+                                pts1,
+                                pts2,
+                                cv2.FM_RANSAC,
+                                cfg.MAX_ERROR,
+                                cfg.CONFIDENCE,
+                                cfg.ITERATIONS,
                             )
-                        except:
-                            logger.info("No valid geometry")
-                    elif mask.shape[0] <= 8:
-                        logger.info("N points < 8")
-                db.commit()
-                db.close()
+                        elif cfg.GEOMETRIC_VERIFICATION == "pydegensac":
+                            F, mask = pydegensac.findFundamentalMatrix(
+                                pts1,
+                                pts2,
+                                px_th=cfg.MAX_ERROR,
+                                conf=cfg.CONFIDENCE,
+                                max_iters=cfg.ITERATIONS,
+                                laf_consistensy_coef=-1,
+                                error_type="sampson",
+                                symmetric_error_check=True,
+                                enable_degeneracy_check=True,
+                            )
+                        if mask.shape[0] > 8:
+                            try:
+                                if cfg.GEOMETRIC_VERIFICATION == "pydegensac":
+                                    mask = mask
+                                elif cfg.GEOMETRIC_VERIFICATION == "ransac":
+                                    mask = mask[:, 0]
+                                verified_matches_matrix = matches_matrix[mask, :]
+                                db.add_two_view_geometry(
+                                    int(j + 1), int(i + 1), verified_matches_matrix
+                                )
+                            except:
+                                logger.info("No valid geometry")
+                        elif mask.shape[0] <= 8:
+                            logger.info("N points < 8")
+                    db.commit()
+                    db.close()
 
         # if cfg.LOOP_CLOSURE_DETECTION == False:
         #    colmap.SequentialMatcher(database_path=cfg.DATABASE, loop_closure='0', overlap=str(SEQUENTIAL_OVERLAP), vocab_tree='')
