@@ -342,6 +342,8 @@ while True:
                         descriptors[i + 1].astype(float),
                         cfg.KORNIA_MATCHER,
                         cfg.RATIO_THRESHOLD,
+                        keypoints[j + 1],
+                        keypoints[i + 1],
                     )
                     if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
                         continue

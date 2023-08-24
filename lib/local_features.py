@@ -13,7 +13,8 @@ from lib import db_colmap, cameras
 from lib.thirdparty.alike.alike import ALike, configs
 
 from lib.thirdparty.SuperGlue.models.matching import Matching
-
+from lib.thirdparty.LightGlue.lightglue import SuperPoint
+from lib.thirdparty.LightGlue.lightglue.utils import load_image
 
 class LocalFeatures:
     def __init__(
@@ -42,11 +43,19 @@ class LocalFeatures:
         elif self.method == "ORB":
             self.orb_cfg = cfg
 
+        elif self.method == "DISK":
+            self.orb_cfg = cfg
+            self.device = torch.device("cuda")  # TODO set to cuda
+            self.disk = KF.DISK.from_pretrained('depth').to(self.device)
+
         elif self.method == "KeyNetAffNetHardNet":
             self.kornia_cfg = cfg
             self.device = torch.device("cuda")  # TODO set to cuda
 
-        if self.method == "SuperGlue":
+        elif self.method == "SuperPoint":
+            self.kornia_cfg = cfg
+
+        elif self.method == "SuperGlue":
             self.superglue_cfg = cfg
             device = 'cuda'
             config = {
@@ -111,9 +120,45 @@ class LocalFeatures:
         return self.kpts, self.descriptors
 
     def load_torch_image(self, fname):
-        img = K.image_to_tensor(cv2.imread(fname), False).float() / 255.0
+        cv_img = cv2.imread(fname)
+        img = K.image_to_tensor(cv_img, False).float() / 255.0
         img = K.color.rgb_to_grayscale(K.color.bgr_to_rgb(img))
         return img
+
+    def load_torch_image_rgb(self, fname):
+        cv_img = cv2.imread(fname)
+        img = K.image_to_tensor(cv_img, False).float() / 255.0
+        return img
+
+    def DISK(self, images: List[Path]):
+        # Inspired by: https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
+        disk = self.disk
+        with torch.inference_mode():
+            for im_path in images:
+                img = self.load_torch_image_rgb(str(im_path)).to(self.device)
+                features = disk(img, self.n_features, pad_if_not_divisible=True)[0]
+                kps1, descs = features.keypoints, features.descriptors
+
+                self.kpts[im_path.stem] = kps1.cpu().detach().numpy()
+                self.descriptors[im_path.stem] = descs.cpu().detach().numpy()
+
+        return self.kpts, self.descriptors
+
+    def SuperPoint(self, images: List[Path]):
+        with torch.inference_mode():
+            for im_path in images:
+                extractor = SuperPoint(max_num_keypoints=self.n_features).eval().cuda()
+                image = load_image(im_path).cuda()
+                feats = extractor.extract(image)
+                kpt = feats['keypoints'].cpu().detach().numpy()
+                desc = feats['descriptors'].cpu().detach().numpy()
+                self.kpts[im_path.stem] = kpt.reshape(-1, kpt.shape[-1])
+                self.descriptors[im_path.stem] = desc.reshape(-1, desc.shape[-1])
+
+                print(self.kpts[im_path.stem].shape)
+                print(self.descriptors[im_path.stem].shape)
+
+        return self.kpts, self.descriptors
 
     def KeyNetAffNetHardNet(self, images: List[Path]):
         for im_path in images:
@@ -166,6 +211,12 @@ def LocalFeatConfFile(cfg_edict) -> edict:
         cfg_dict = edict({})
 
     elif local_feature == "RootSIFT":
+        cfg_dict = edict({})
+
+    elif local_feature == "SuperPoint":
+        cfg_dict = edict({})
+
+    elif local_feature == "DISK":
         cfg_dict = edict({})
 
     elif local_feature == "SuperGlue":
@@ -226,12 +277,15 @@ class LocalFeatureExtractor:
                         kpts, descriptors = extract([keyframe_dir / img])
                         kp = kpts[img.name[: -len(image_format) - 1]]
                         desc = descriptors[img.name[: -len(image_format) - 1]]
-    
+ 
                         kp = kp[:, 0:2]
     
                         desc_len = np.shape(desc)[1]
-                        zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
-                        desc = np.append(desc, zero_matrix, axis=1)
+                        if self.local_feature != 'SuperPoint':
+                            zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
+                            desc = np.append(desc, zero_matrix, axis=1)
+                        else:
+                            desc = desc[:, 128]
                         desc.astype(np.float32)
                         desc = np.absolute(desc)
     

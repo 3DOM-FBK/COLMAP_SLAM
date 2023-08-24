@@ -2,7 +2,7 @@
 
 https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/af549427-8e87-445d-92f3-1c14e42b5d5a
 
-COLMAP_SLAM is a Visual-SLAM based on COLMAP API and is mainly intended for the development and testing of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository uses Kornia (https://github.com/kornia/kornia) for matching, and for now only Key.Net+HardNet8 is implemented. All local features made available by Kornia will be added shortly. Other interest points: RootSIFT from COLMAP, ORB from OpenCV, and ALIKE (https://github.com/Shiaoming/ALIKE).
+COLMAP_SLAM is a Visual-SLAM based on COLMAP API and is mainly intended for the development and testing of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository relys on Kornia (https://github.com/kornia/kornia) for matching, and some detectors and descriptors.
 
 Monocular and multicamera scenario are supported. We are joining an other repository with other features (GNSS and IMU aiding). If interested in the project please contact us, you are free to join.
 
@@ -11,11 +11,13 @@ Note the repository is an adaptation of COLMAP to work in real-time, for code an
 | Local Feature      | Supported | Matcher     | Supported |
 |----------          |---------- |----------   |---------- |
 | RootSIFT           | yes       | Brute Force | yes       |
-| ORB                | yes       | SuperGlue   | not yet   |
+| ORB                | yes       | SuperGlue   | yes       |
 | Key.Net + HardNet8 | yes       | LightGlue   | not yet   |
 | ALIKE              | yes       | LoFTR       | not yet   |
-| ALIKED             | not yet   | ADALAM      | not yet   |
+| ALIKED             | not yet   | ADALAM      | yes       |
+| DISK               | yes       | ...         |           |
 | DeDoDe             | not yet   | ...         |           |
+| DKM                | not yet   | ...         |           |
 
 
 ## EuRoC
@@ -36,13 +38,14 @@ unzip -q raw_data/MH_01_easy.zip -d raw_data/MH_01_easy
 To install COLMAP_SLAM in a conda environment (Linux, Windows, MacOS)
 
 ```bash
-conda create -n colmap_slam python=3.10
+conda create -n colmap_slam python=3.9.17
 conda activate colmap_slam
+```
+Install pytorch. See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
+```bash
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
-
-Remember to install pytorch. See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
 
 ### Install COLMAP
 If you have COLMAP installed yet on your PC, remeber to set the path to the COLMAP executable in `config.ini`, e.g., for linux:
@@ -101,3 +104,9 @@ COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
 
 Authors:
 L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
+
+### Reference
+
+Acknowledgements
+For keyframe selection and display: ALIKE (https://github.com/Shiaoming/ALIKE)
+For detectors and matching: Kornia (https://github.com/kornia/kornia)
