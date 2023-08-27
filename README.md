@@ -12,7 +12,7 @@ Note the repository is an adaptation of COLMAP to work in real-time, for code an
 |----------          |---------- |----------   |---------- |
 | RootSIFT           | yes       | Brute Force | yes       |
 | ORB                | yes       | SuperGlue   | yes       |
-| Key.Net + HardNet8 | yes       | LightGlue   | not yet   |
+| Key.Net + HardNet8 | yes       | LightGlue   | yes       |
 | ALIKE              | yes       | LoFTR       | not yet   |
 | ALIKED             | not yet   | ADALAM      | yes       |
 | DISK               | yes       | ...         |           |

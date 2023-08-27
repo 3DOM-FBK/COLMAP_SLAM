@@ -73,6 +73,9 @@ class LocalFeatures:
             matching = Matching(config).eval().to(device)
             self.matcher = matching
 
+        elif self.method == "LoFTR":
+            self.kornia_cfg = cfg
+
     def ORB(self, images: List[Path]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         for im_path in images:
             im_path = Path(im_path)
@@ -155,8 +158,8 @@ class LocalFeatures:
                 self.kpts[im_path.stem] = kpt.reshape(-1, kpt.shape[-1])
                 self.descriptors[im_path.stem] = desc.reshape(-1, desc.shape[-1])
 
-                print(self.kpts[im_path.stem].shape)
-                print(self.descriptors[im_path.stem].shape)
+                #print(self.kpts[im_path.stem].shape)
+                #print(self.descriptors[im_path.stem].shape)
 
         return self.kpts, self.descriptors
 
@@ -172,6 +175,12 @@ class LocalFeatures:
         return self.kpts, self.descriptors
 
     def SuperGlue(self, images: List[Path]):
+        self.kpts = {}
+        self.descriptors = {}
+
+        return self.kpts, self.descriptors
+
+    def LoFTR(self, images: List[Path]):
         self.kpts = {}
         self.descriptors = {}
 
@@ -219,6 +228,9 @@ def LocalFeatConfFile(cfg_edict) -> edict:
     elif local_feature == "DISK":
         cfg_dict = edict({})
 
+    elif local_feature == "LoFTR":
+        cfg_dict = edict({})
+
     elif local_feature == "SuperGlue":
         cfg_dict = edict(
             {
@@ -254,7 +266,7 @@ class LocalFeatureExtractor:
         cameras.CreateCameras(cam_calib, database)
 
 
-    def run(self, database, keyframe_dir, image_format) -> None:
+    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id) -> None:
         
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
@@ -269,7 +281,7 @@ class LocalFeatureExtractor:
             for img in imgs:
                 img = Path(cam) / Path(img)
                 if str(img.parent) + "/" + str(img.name) not in existing_images.values():
-                    if self.local_feature == "SuperGlue":
+                    if self.local_feature == "SuperGlue" or self.local_feature == "LoFTR":
                         img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
                         db.commit()
                     else:
@@ -277,6 +289,10 @@ class LocalFeatureExtractor:
                         kpts, descriptors = extract([keyframe_dir / img])
                         kp = kpts[img.name[: -len(image_format) - 1]]
                         desc = descriptors[img.name[: -len(image_format) - 1]]
+
+                        img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                        kpts_key_colmap_id[img_id] = kp
+                        descs_key_colmap_id[img_id] = desc
  
                         kp = kp[:, 0:2]
     
@@ -285,7 +301,7 @@ class LocalFeatureExtractor:
                             zero_matrix = np.zeros((np.shape(desc)[0], 128 - desc_len))
                             desc = np.append(desc, zero_matrix, axis=1)
                         else:
-                            desc = desc[:, 128]
+                            desc = desc[:, :128]
                         desc.astype(np.float32)
                         desc = np.absolute(desc)
     
@@ -298,9 +314,10 @@ class LocalFeatureExtractor:
                         zero_matrix = np.zeros((np.shape(kp)[0], 3))
                         kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
     
-                        img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                        
                         db.add_keypoints(img_id, kp)
                         db.add_descriptors(img_id, desc)
                         db.commit()
 
         db.close()
+        return kpts_key_colmap_id, descs_key_colmap_id

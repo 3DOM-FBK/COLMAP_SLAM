@@ -1,3 +1,7 @@
 ### Notes
 
 - In mapper.ini keep transitivity high.
+- Processes in parrallel. Extraction of featues (each image a separate process). Also matching cam be done in parallel.
+- Visualize in real time optical flow for keyframes (is a different local feature)
+- To save time, save local features from keyframe selection
+- For mapper, use tie points only from last 6 frames

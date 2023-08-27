@@ -39,7 +39,7 @@ class KeyFrameSelector:
         last_keyframe_pointer: int = 0,
         last_keyframe_delta: int = 0,
         keyframes_dir: Union[str, Path] = "colmap_imgs",
-        kfs_method: Union[str, Path] = "local_features",
+        kfs_method: str = "local_features",
         local_feature: str = "ORB",
         local_feature_cfg: dict = None,
         n_features: int = 512,

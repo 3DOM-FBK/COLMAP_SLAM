@@ -1,8 +1,19 @@
 import numpy as np
+from typing import List, Union
+from pathlib import Path
+
+# Example
+# keyframe._image_name imgs\cam0\1403636871851666432.jpg
+# keyframe._image_id 53
+# keyframe._keyframe_id 29
+# keyframe._keyframe_name 000029.jpg
 
 
 class KeyFrame:
-    def __init__(self, image_name, keyframe_id, keyframe_name, camera_id, image_id):
+    def __init__(self, image_name : Union[str, Path], keyframe_id, keyframe_name, camera_id, image_id):
+        #for n, char in enumerate(image_name):
+        #    if char == '\\':
+        #        image_name[n] = '/'
         self._image_name = image_name
         self._image_id = image_id
         self._keyframe_id = keyframe_id
