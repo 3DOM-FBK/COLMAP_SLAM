@@ -22,26 +22,41 @@ def load_torch_image(fname, device=torch.device('cpu')):
     img = kornia.color.bgr_to_rgb(img.to(device))
     return img
 
-def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2):
+def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, laf1, laf2):
+    refined = False
     torch_desc_1 = torch.from_numpy(desc_1)
     torch_desc_2 = torch.from_numpy(desc_2)
 
     if kornia_matcher == 'adalam':
-        # For adalam see: https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
+        # See: 
+        # https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
+        # https://kornia.readthedocs.io/en/latest/feature.html#local-affine-frames-laf
+        # https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
+        
         #laf1 = torch.from_numpy(np.zeros((1,desc_1.shape[0],2,3)))
         #laf2 = torch.from_numpy(np.zeros((1,desc_2.shape[0],2,3)))
+
         kps1_tensor = torch.from_numpy(kps1[:,:2]).to(device='cuda')
-        laf1 = feature.laf_from_center_scale_ori(kps1_tensor.unsqueeze(0),
-                                             torch.ones(1, len(kps1), 1, 1,device='cuda'))
+        if laf1.any == None and laf2.any == None:
+            laf1 = feature.laf_from_center_scale_ori(kps1_tensor.unsqueeze(0),
+                                                 torch.ones(1, len(kps1), 1, 1,device='cuda'))
+        else:
+            laf1 = torch.from_numpy(laf1)
         kps2_tensor = torch.from_numpy(kps2[:,:2]).to(device='cuda')
-        laf2 = feature.laf_from_center_scale_ori(kps2_tensor.unsqueeze(0),
-                                             torch.ones(1, len(kps2), 1, 1,device='cuda'))
+
+        if laf1.any == None and laf2.any == None:
+            laf2 = feature.laf_from_center_scale_ori(kps2_tensor.unsqueeze(0),
+                                                 torch.ones(1, len(kps2), 1, 1,device='cuda'))
+        else:
+            laf2 = torch.from_numpy(laf2)
+
         match_distances, matches_matrix = feature.match_adalam(torch_desc_1, torch_desc_2, laf1, laf2)
-        # Could be useful implement the use of LAF (Local Affine Frames)
-        # See https://kornia.readthedocs.io/en/latest/feature.html#local-affine-frames-laf
-        # See https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
-        # kpts1 = KF.get_laf_center(lafs).reshape(-1, 2).detach().cpu().numpy()
-        # So the ktps position should be updated
+
+        # Refine kpts using LAF info
+        kps1 = feature.get_laf_center(laf1).reshape(-1, 2).detach().cpu().numpy()
+        kps2 = feature.get_laf_center(laf2).reshape(-1, 2).detach().cpu().numpy()
+        refined = True
+
 
     elif kornia_matcher == 'lightglue':
         #extractor = SuperPoint(max_num_keypoints=2048).eval().cuda()
@@ -82,7 +97,7 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2):
         print('Insert a matcher between those available in conf.ini\n Exit')
         quit()
 
-    return matches_matrix
+    return matches_matrix, kps1, kps2, refined
 
 
 def SuperGlue(keyframe_dir : List[Path], im1 : str, im2 : str, matching):

@@ -110,7 +110,9 @@ class LocalFeatures:
             self.kpts[im_path.stem] = kpts
             self.descriptors[im_path.stem] = des
 
-        return self.kpts, self.descriptors
+            laf = None
+
+        return self.kpts, self.descriptors, laf
 
     def ALIKE(self, images: List[Path]):
         for im_path in images:
@@ -120,7 +122,9 @@ class LocalFeatures:
             self.kpts[im_path.stem] = features["keypoints"]
             self.descriptors[im_path.stem] = features["descriptors"]
 
-        return self.kpts, self.descriptors
+            laf = None
+
+        return self.kpts, self.descriptors, laf
 
     def load_torch_image(self, fname):
         cv_img = cv2.imread(fname)
@@ -145,7 +149,9 @@ class LocalFeatures:
                 self.kpts[im_path.stem] = kps1.cpu().detach().numpy()
                 self.descriptors[im_path.stem] = descs.cpu().detach().numpy()
 
-        return self.kpts, self.descriptors
+                laf = None
+
+        return self.kpts, self.descriptors, laf
 
     def SuperPoint(self, images: List[Path]):
         with torch.inference_mode():
@@ -161,7 +167,9 @@ class LocalFeatures:
                 #print(self.kpts[im_path.stem].shape)
                 #print(self.descriptors[im_path.stem].shape)
 
-        return self.kpts, self.descriptors
+                laf = None
+
+        return self.kpts, self.descriptors, laf
 
     def KeyNetAffNetHardNet(self, images: List[Path]):
         for im_path in images:
@@ -169,22 +177,25 @@ class LocalFeatures:
             keypts = KF.KeyNetAffNetHardNet(
                 num_features=self.n_features, upright=True, device=torch.device("cuda")
             ).forward(img)
+            laf = keypts[0].cpu().detach().numpy()
             self.kpts[im_path.stem] = keypts[0].cpu().detach().numpy()[-1, :, :, -1]
             self.descriptors[im_path.stem] = keypts[2].cpu().detach().numpy()[-1, :, :]
 
-        return self.kpts, self.descriptors
+        return self.kpts, self.descriptors, laf
 
     def SuperGlue(self, images: List[Path]):
         self.kpts = {}
         self.descriptors = {}
+        laf = None
 
-        return self.kpts, self.descriptors
+        return self.kpts, self.descriptors, laf
 
     def LoFTR(self, images: List[Path]):
         self.kpts = {}
         self.descriptors = {}
+        laf = None
 
-        return self.kpts, self.descriptors
+        return self.kpts, self.descriptors, laf
 
 
 def LocalFeatConfFile(cfg_edict) -> edict:
@@ -266,7 +277,7 @@ class LocalFeatureExtractor:
         cameras.CreateCameras(cam_calib, database)
 
 
-    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id) -> None:
+    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
         
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
@@ -286,13 +297,14 @@ class LocalFeatureExtractor:
                         db.commit()
                     else:
                         extract = getattr(self.detector_and_descriptor, self.local_feature)
-                        kpts, descriptors = extract([keyframe_dir / img])
+                        kpts, descriptors, laf = extract([keyframe_dir / img])
                         kp = kpts[img.name[: -len(image_format) - 1]]
                         desc = descriptors[img.name[: -len(image_format) - 1]]
 
                         img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
                         kpts_key_colmap_id[img_id] = kp
                         descs_key_colmap_id[img_id] = desc
+                        laf_key_colmap_id[img_id] = laf
  
                         kp = kp[:, 0:2]
     
@@ -320,4 +332,5 @@ class LocalFeatureExtractor:
                         db.commit()
 
         db.close()
-        return kpts_key_colmap_id, descs_key_colmap_id
+
+        return kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id

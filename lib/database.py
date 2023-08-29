@@ -35,6 +35,7 @@ import sqlite3
 import numpy as np
 import os
 
+from lib.db_colmap import array_to_blob
 
 IS_PYTHON3 = sys.version_info[0] >= 3
 
@@ -77,3 +78,22 @@ def dbReturnMatches(database_path, min_num_matches):
     else:
         print("Database does not exist")
         quit()
+
+
+def dbSubstituteMatches(database_path, index_im_1, index_im_2, kpts1, kpts2):
+    one_matrix = np.ones((np.shape(kpts1)[0], 1))
+    kpts1 = np.append(kpts1, one_matrix, axis=1)
+    zero_matrix = np.zeros((np.shape(kpts1)[0], 3))
+    kpts1 = np.append(kpts1, zero_matrix, axis=1).astype(np.float32)
+
+    one_matrix = np.ones((np.shape(kpts2)[0], 1))
+    kpts2 = np.append(kpts2, one_matrix, axis=1)
+    zero_matrix = np.zeros((np.shape(kpts2)[0], 3))
+    kpts2 = np.append(kpts2, zero_matrix, axis=1).astype(np.float32)
+
+    connection = sqlite3.connect(database_path)
+    cursor = connection.cursor()
+    cursor.execute("UPDATE keypoints SET data = ? WHERE image_id = ?", (array_to_blob(kpts1), index_im_1))
+    cursor.execute("UPDATE keypoints SET data = ? WHERE image_id = ?", (array_to_blob(kpts2), index_im_2))
+    connection.commit()
+    connection.close()

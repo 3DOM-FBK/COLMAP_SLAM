@@ -30,10 +30,20 @@ from pathlib import Path
 # Configuration file
 CFG_FILE = "config.ini"
 
-# Setup logging level
+# Setup logging level. Options are [INFO, WARNING, ERROR, CRITICAL]
 LOG_LEVEL = logging.INFO
-utils.Inizialization.setup_logger(LOG_LEVEL)
-logger = logging.getLogger("ColmapSLAM")
+# utils.Inizialization.setup_logger(LOG_LEVEL)
+# logger = logging.getLogger("ColmapSLAM")
+if os.path.exists('debug.log'):
+    os.remove('debug.log')
+logging.basicConfig(filename='debug.log', level=logging.DEBUG,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)  # Set the desired level for console output
+console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+logging.getLogger().addHandler(console_handler)
+logger = logging.getLogger()
 
 # Inizialize COLMAP SLAM problem
 init = utils.Inizialization(CFG_FILE)
@@ -60,7 +70,7 @@ one_time = False  # It becomes true after the first batch of images is oriented
 # At following epochs the photogrammetric model will be reported in this ref system.
 reference_imgs = []
 adjacency_matrix = None
-keypoints, descriptors = {}, {}
+keypoints, descriptors, laf = {}, {}, {}
 
 # Setup keyframe selector
 kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
@@ -105,6 +115,9 @@ if cfg.USE_SERVER == True:
     stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
 else:
     stream_proc = subprocess.Popen(["python", "./simulator.py"])
+
+#from lib import webcam
+#webcam(cfg.IMGS_FROM_SERVER, 5)
 
 # Set-up plotqq
 # create_plot()
@@ -251,7 +264,8 @@ while True:
 
         logger.info("Feature extraction")
         if cfg.LOCAL_FEAT_LOCAL_FEATURE != "RootSIFT":
-            keypoints, descriptors = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors)
+            keypoints, descriptors, laf = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf)
+        # Aggiungere LAF per RootSIFT
         elif cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
             colmap.ExtractRootSiftFeatures(
                 database_path=cfg.DATABASE,
@@ -289,7 +303,7 @@ while True:
 
             if cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
                 keypoints, descriptors = kpoints, des
-                
+
             d = new_n_keyframes - old_n_keyframes
             inverted_dict = {value: key for key, value in images.items()}
 
@@ -345,14 +359,32 @@ while True:
                         db.close()
 
                     else:
-                        matches_matrix = matcher.Matcher(
+                        logger.info(keypoints[j + 1][0,:])
+                        logger.info(keypoints[i + 1][0,:])
+                        matches_matrix, kps1, kps2, refined = matcher.Matcher(
                             descriptors[j + 1].astype(float),
                             descriptors[i + 1].astype(float),
                             cfg.KORNIA_MATCHER,
                             cfg.RATIO_THRESHOLD,
                             keypoints[j + 1],
                             keypoints[i + 1],
+                            laf[j + 1],
+                            laf[i + 1],
                         )
+
+                        if refined == True:
+                            logger.info("Refined")
+                            logger.info(kps1[0,:])
+                            logger.info(kps2[1,:])
+                            database.dbSubstituteMatches(cfg.DATABASE, j + 1, i + 1, kps1, kps2)
+                            db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
+                            db.add_two_view_geometry(
+                                int(j + 1), int(i + 1), matches_matrix
+                            )
+                            db.commit()
+                            db.close()
+                            continue
+
                         if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
                             continue
                         db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
@@ -446,9 +478,9 @@ while True:
             )
 
             # Setup logging level
-            LOG_LEVEL = logging.INFO
-            utils.Inizialization.setup_logger(LOG_LEVEL)
-            logger = logging.getLogger("ColmapSLAM")
+            #LOG_LEVEL = logging.INFO
+            #utils.Inizialization.setup_logger(LOG_LEVEL)
+            #logger = logging.getLogger("ColmapSLAM")
 
             # Initialize variables
             keyframes_list = KeyFrameList()
@@ -458,7 +490,7 @@ while True:
             first_colmap_loop = True
             one_time = False
             reference_imgs = []
-            keypoints, descriptors = {}, {}
+            keypoints, descriptors, laf = {}, {}, {}
 
             # Setup keyframe selector
             kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
@@ -698,9 +730,9 @@ while True:
             )
 
             # Setup logging level
-            LOG_LEVEL = logging.INFO
-            utils.Inizialization.setup_logger(LOG_LEVEL)
-            logger = logging.getLogger("ColmapSLAM")
+            #LOG_LEVEL = logging.INFO
+            #utils.Inizialization.setup_logger(LOG_LEVEL)
+            #logger = logging.getLogger("ColmapSLAM")
 
             # Initialize variables
             print("\n\nREINITIALIZE ..")
@@ -711,7 +743,7 @@ while True:
             first_colmap_loop = True
             one_time = False
             reference_imgs = []
-            keypoints, descriptors = {}, {}
+            keypoints, descriptors, laf = {}, {}, {}
 
             # Setup keyframe selector
             kf_selection_detecor_config = KeyFrameSelConfFile(cfg)

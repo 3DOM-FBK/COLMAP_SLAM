@@ -157,7 +157,7 @@ class KeyFrameSelector:
 
         elif self.local_feature == "ALIKE":
 
-            all_keypoints, all_descriptors = self.feature_extractor.ALIKE([img1, img2])
+            all_keypoints, all_descriptors, lafs = self.feature_extractor.ALIKE([img1, img2])
             self.kpts1 = all_keypoints[img1.stem]
             self.kpts2 = all_keypoints[img2.stem]
             self.desc1 = all_descriptors[img1.stem]
