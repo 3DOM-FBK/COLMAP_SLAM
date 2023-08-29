@@ -116,8 +116,8 @@ if cfg.USE_SERVER == True:
 else:
     stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
-#from lib import webcam
-#webcam(cfg.IMGS_FROM_SERVER, 5)
+#from lib.webcam import webcam
+#webcam(cfg.IMGS_FROM_SERVER / "cam0", frame_rate = 5, wecam_id = 1)
 
 # Set-up plotqq
 # create_plot()
@@ -303,6 +303,8 @@ while True:
 
             if cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
                 keypoints, descriptors = kpoints, des
+                for key in keypoints:
+                    laf[key] = None
 
             d = new_n_keyframes - old_n_keyframes
             inverted_dict = {value: key for key, value in images.items()}
@@ -359,9 +361,7 @@ while True:
                         db.close()
 
                     else:
-                        logger.info(keypoints[j + 1][0,:])
-                        logger.info(keypoints[i + 1][0,:])
-                        matches_matrix, kps1, kps2, refined = matcher.Matcher(
+                        matches_matrix, kps1, kps2 = matcher.Matcher(
                             descriptors[j + 1].astype(float),
                             descriptors[i + 1].astype(float),
                             cfg.KORNIA_MATCHER,
@@ -371,19 +371,6 @@ while True:
                             laf[j + 1],
                             laf[i + 1],
                         )
-
-                        if refined == True:
-                            logger.info("Refined")
-                            logger.info(kps1[0,:])
-                            logger.info(kps2[1,:])
-                            database.dbSubstituteMatches(cfg.DATABASE, j + 1, i + 1, kps1, kps2)
-                            db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
-                            db.add_two_view_geometry(
-                                int(j + 1), int(i + 1), matches_matrix
-                            )
-                            db.commit()
-                            db.close()
-                            continue
 
                         if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
                             continue

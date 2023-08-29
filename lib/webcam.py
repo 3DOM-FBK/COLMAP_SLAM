@@ -2,14 +2,17 @@ import cv2
 import time
 import os
 
-def webcam(frames_folder, frame_rate = 5):
-    cap = cv2.VideoCapture(0)  # 0 represents the default webcam
+def webcam(frames_folder, frame_rate = 5, wecam_id = 1):
+    cap = cv2.VideoCapture(wecam_id)
+
+    time.sleep(5)
+
     frame_interval = 1 / frame_rate
 
     frame_count = 0
     start_time = time.time()
 
-    while True:
+    for i in range(100):
         ret, frame = cap.read()
 
         if not ret:
@@ -27,7 +30,7 @@ def webcam(frames_folder, frame_rate = 5):
             print(f"Saved frame {frame_count}")
 
         # Exit when 'q' is pressed
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        if cv2.waitKey(30) & 0xFF == ord('q'):
             break
 
     # Release the webcam and close OpenCV windows

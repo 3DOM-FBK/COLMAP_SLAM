@@ -23,7 +23,6 @@ def load_torch_image(fname, device=torch.device('cpu')):
     return img
 
 def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, laf1, laf2):
-    refined = False
     torch_desc_1 = torch.from_numpy(desc_1)
     torch_desc_2 = torch.from_numpy(desc_2)
 
@@ -51,11 +50,6 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, l
             laf2 = torch.from_numpy(laf2)
 
         match_distances, matches_matrix = feature.match_adalam(torch_desc_1, torch_desc_2, laf1, laf2)
-
-        # Refine kpts using LAF info
-        kps1 = feature.get_laf_center(laf1).reshape(-1, 2).detach().cpu().numpy()
-        kps2 = feature.get_laf_center(laf2).reshape(-1, 2).detach().cpu().numpy()
-        refined = True
 
 
     elif kornia_matcher == 'lightglue':
@@ -97,7 +91,7 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, l
         print('Insert a matcher between those available in conf.ini\n Exit')
         quit()
 
-    return matches_matrix, kps1, kps2, refined
+    return matches_matrix, kps1, kps2
 
 
 def SuperGlue(keyframe_dir : List[Path], im1 : str, im2 : str, matching):
