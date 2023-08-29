@@ -5,3 +5,16 @@
 - Visualize in real time optical flow for keyframes (is a different local feature)
 - To save time, save local features from keyframe selection
 - For mapper, use tie points only from last 6 frames
+
+
+
+### CALIBRATIONS
+# Machine Hall
+N_CAMERAS = 2
+CAM0 = 4,752,480,458.654,457.296,367.215,248.375,-0.28340811,0.07395907,0.00019359,1.76187114e-05
+CAM1 = 4,752,480,457.587,456.134,379.999,255.238,-0.28368365,0.07451284,-0.00010473,-3.55590700e-05
+BASELINE_CAM0_CAM1 = 0.110078
+
+# GoPro webcam (Wide)
+N_CAMERAS = 1
+CAM0 = 5,1920,1080,992.12798,992.12798,540,495,0.0354746,-0.0039797,-0.000946751,-0.0127286

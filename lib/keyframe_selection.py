@@ -19,6 +19,7 @@ from lib.local_features import LocalFeatures
 from lib.matching import Matcher, make_match_plot
 from lib.thirdparty.alike.alike import ALike, configs
 
+MAX_WINDOW_SIZE = 1400
 
 # TODO: use logger instead of print
 logger = logging.getLogger(__name__)
@@ -149,7 +150,7 @@ class KeyFrameSelector:
         self.img2 = Path(img2)
 
         if self.local_feature == "ORB":
-            all_keypoints, all_descriptors = self.feature_extractor.ORB([img1, img2])
+            all_keypoints, all_descriptors, lafs = self.feature_extractor.ORB([img1, img2])
             self.kpts1 = all_keypoints[img1.stem][:, 0:2]
             self.kpts2 = all_keypoints[img2.stem][:, 0:2]
             self.desc1 = all_descriptors[img1.stem][:, 0:32]
@@ -165,7 +166,7 @@ class KeyFrameSelector:
 
         elif self.local_feature == "KeyNetAffNetHardNet":
 
-            all_keypoints, all_descriptors = self.feature_extractor.KeyNetAffNetHardNet([img1, img2])
+            all_keypoints, all_descriptors, lafs = self.feature_extractor.KeyNetAffNetHardNet([img1, img2])
             self.kpts1 = all_keypoints[img1.stem]
             self.kpts2 = all_keypoints[img2.stem]
             self.desc1 = all_descriptors[img1.stem]
@@ -352,6 +353,8 @@ class KeyFrameSelector:
             cv2.setWindowTitle("Keyframe Selection", win_name)
             #cv2.imshow("Keyframe Selection", traj_img)
             conc = np.concatenate((match_img, traj_img), axis=1)
+            height, width, channels = conc.shape
+            conc = cv2.resize(conc, (MAX_WINDOW_SIZE, int(height*MAX_WINDOW_SIZE/width)))
             cv2.imshow("Keyframe Selection", conc)
             if cv2.waitKey(1) == ord("q"):
                 sys.exit()

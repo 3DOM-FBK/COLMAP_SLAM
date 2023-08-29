@@ -116,8 +116,8 @@ if cfg.USE_SERVER == True:
 else:
     stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
-#from lib.webcam import webcam
-#webcam(cfg.IMGS_FROM_SERVER / "cam0", frame_rate = 5, wecam_id = 1)
+
+#stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
 # Set-up plotqq
 # create_plot()
@@ -643,11 +643,10 @@ while True:
             #print(baselines)
             #print(np.mean(baselines))
             scale = cfg.BASELINE_CAM0_CAM1 / np.mean(baselines)
+            print("mean", np.mean(np.array(baselines)*scale))
+            print("std", np.std(np.array(baselines)*scale))
         else:
             scale = 1
-        
-        print("mean", np.mean(np.array(baselines)*scale))
-        print("std", np.std(np.array(baselines)*scale))
         
         # Apply scale factor
         with open("./scaled_keyframes1.txt", 'w') as out1, open("./scaled_keyframes2.txt", 'w') as out2:

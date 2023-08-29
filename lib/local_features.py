@@ -117,10 +117,13 @@ class LocalFeatures:
     def ALIKE(self, images: List[Path]):
         for im_path in images:
             img = cv2.cvtColor(cv2.imread(str(im_path)), cv2.COLOR_BGR2RGB)
+            #h, w, c = img.shape
+            #ratio = 0.15
+            #img = cv2.resize(img, (int(w*ratio), int(h*ratio)))
             features = self.model(img, sub_pixel=self.alike_cfg.subpixel)
 
-            self.kpts[im_path.stem] = features["keypoints"]
-            self.descriptors[im_path.stem] = features["descriptors"]
+            self.kpts[im_path.stem] = features["keypoints"] #* 1/ratio
+            self.descriptors[im_path.stem] = features["descriptors"] #* 1/ratio
 
             laf = None
 
