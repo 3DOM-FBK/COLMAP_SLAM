@@ -28,20 +28,26 @@
 #    update_process.join()
 #    print_process.join()
 
-
-import logging
 import os
-import pickle
-import shutil
-import subprocess
+import cv2
 import time
 import glob
-import multiprocessing
-
-import cv2
-import numpy as np
+import pickle
+import shutil
+import logging
 import pydegensac
+import subprocess
+import multiprocessing
+import numpy as np
+
 from pyquaternion import Quaternion
+from lib.colmapAPI import ColmapAPI
+from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
+from lib.keyframes import KeyFrame, KeyFrameList
+from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
+from lib import cameras
+from pathlib import Path
+from multiprocessing.managers import BaseManager
 
 from lib import (
     ExtractCustomFeatures,
@@ -52,60 +58,12 @@ from lib import (
     matcher,
     utils,
 )
-from lib.colmapAPI import ColmapAPI
-from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
-from lib.keyframes import KeyFrame, KeyFrameList
-from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
-from lib import cameras
-from pathlib import Path
 
-from multiprocessing.managers import BaseManager
 
-## Configuration file
-#CFG_FILE = "config.ini"
-#
-### Setup logging level. Options are [INFO, WARNING, ERROR, CRITICAL]
-##LOG_LEVEL = logging.INFO
-### utils.Inizialization.setup_logger(LOG_LEVEL)
-### logger = logging.getLogger("ColmapSLAM")
-##if os.path.exists('debug.log'):
-##    os.remove('debug.log')
-##logging.basicConfig(filename='debug.log', level=logging.DEBUG,
-##                    format='%(asctime)s - %(levelname)s - %(message)s')
-##console_handler = logging.StreamHandler()
-##console_handler.setLevel(logging.DEBUG)  # Set the desired level for console output
-##console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-##console_handler.setFormatter(console_formatter)
-##logging.getLogger().addHandler(console_handler)
-##logger = logging.getLogger()
-#
-## Inizialize COLMAP SLAM problem
-#init = utils.Inizialization(CFG_FILE)
-#cfg = init.inizialize()
-#cfg.PLOT_TRJECTORY = False # Please keep PLOT_TRAJECTORY = False.
-## It is used to plot an additional trajectory (matplotlib) but for now shows rarely a bug (multiple plots).
-## In any case the plot from opencv will show
-#
-## Initialize variables
-#SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
-#MAX_SEQUENTIAL_OVERLAP = 50
-#if cfg.SNAPSHOT == True:
-#    SNAPSHOT_DIR = './frames'
-#elif cfg.SNAPSHOT == False:
-#    SNAPSHOT_DIR = None
-#keyframes_list = KeyFrameList()
-#processed_imgs = []
-#kfm_batch = []
-#pointer = 0  # pointer points to the last oriented image
-#delta = 0  # delta is equal to the number of processed but not oriented imgs
-#first_colmap_loop = True
-#one_time = False  # It becomes true after the first batch of images is oriented
-## The first batch of images define the reference system.
-## At following epochs the photogrammetric model will be reported in this ref system.
-#reference_imgs = []
-#adjacency_matrix = None
-#keypoints, descriptors, laf = {}, {}, {}
-#
+
+def KFrameSelProcess(frames_dir, keyframes_list):
+
+
 ## Setup keyframe selector
 #kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
 #keyframe_selector = KeyFrameSelector(
@@ -133,50 +91,32 @@ from multiprocessing.managers import BaseManager
 #    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
 #)
 #
-## If the camera coordinates are known from other sensors than gnss,
-## they can be stores in camera_coord_other_sensors dictionary and used
-## to scale the photogrammetric model
-#camera_coord_other_sensors = {}
-#if cfg.USE_EXTERNAL_CAM_COORD == True:
-#    with open(cfg.CAMERA_COORDINATES_FILE, "r") as gt_file:
-#        lines = gt_file.readlines()
-#        for line in lines[2:]:
-#            id, x, y, z, _ = line.split(" ", 4)
-#            camera_coord_other_sensors[id] = (x, y, z)
-#
-## Stream of input data
-#if cfg.USE_SERVER == True:
-#    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-#else:
-#    stream_proc = subprocess.Popen(["python", "./simulator.py"])
-#
-#
-##stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
-#
-## Set-up plotqq
-## create_plot()
-#if cfg.PLOT_TRJECTORY:
-#    plot_proc = subprocess.Popen(["python", "./plot.py"])
-#
-## Initialize COLMAP API
-#colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 
 
+    #for ciao in range (2):
+    #    
+    #    imgs = os.listdir(frames_dir)
+    keyframes_list.add_keyframe(
+                KeyFrame(
+                    Path("./imgs/001.jpg"),
+                    1,
+                    "001.jpg",
+                    0,
+                    1,
+                )
+            )  
+    time.sleep(3)
 
-def k_frame(frames_dir, keyframes_list):
-    for ciao in range (2):
-        
-        imgs = os.listdir(frames_dir)
-        keyframes_list.add_keyframe(
-                    KeyFrame(
-                        f'img{ciao}',
-                        ciao,
-                        ciao,
-                        ciao,
-                        ciao,
-                    )
-                )      
-        time.sleep(3)  
+    keyframes_list.add_keyframe(
+                KeyFrame(
+                    Path("./imgs/002.jpg"),
+                    2,
+                    "002.jpg",
+                    0,
+                    2,
+                )
+            )  
+    time.sleep(3)
 
         #elif len(imgs) < 2:
         #    # Set first frame as keyframe
@@ -235,9 +175,9 @@ def print_list_length(keyframes_list):
     for i in range(5):
         time.sleep(4)
 
-        ob = keyframes_list.get_keyframe_by_image_name('img1')
+        #ob = keyframes_list.get_keyframe_by_id(1)
         #for k in keyframes_list.keyframes:
-        print("File list length:",  ob.image_name)
+        print("File list length:",  len(keyframes_list.keyframes()))
         
 
 class CustomManager(BaseManager):
@@ -247,21 +187,63 @@ class CustomManager(BaseManager):
 
 
 if __name__ == '__main__':
-    
+
+
+    ### SETUP LOGGER
+    # Setup logging level. Options are [INFO, WARNING, ERROR, CRITICAL]
+    LOG_LEVEL = logging.INFO 
+    utils.Inizialization.setup_logger(LOG_LEVEL)
+    logger = logging.getLogger()
+    logger.info('Setup logger finished')
+
+
+    ### INITIALIZATION
+    CFG_FILE = "config.ini"
+    init = utils.Inizialization(CFG_FILE)
+    cfg = init.inizialize()
+
+    SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
+    MAX_SEQUENTIAL_OVERLAP = 50
+    if cfg.SNAPSHOT == True:
+        SNAPSHOT_DIR = './frames'
+    elif cfg.SNAPSHOT == False:
+        SNAPSHOT_DIR = None
+
+    keyframes_list = KeyFrameList()
+    processed_imgs = []
+    kfm_batch = []
+    pointer = 0  # pointer points to the last oriented image
+    delta = 0  # delta is equal to the number of processed but not oriented imgs
+    first_colmap_loop = True
+    one_time = False  # It becomes true after the first batch of images is oriented
+    # The first batch of images define the reference system.
+    # At following epochs the photogrammetric model will be reported in this ref system.
+    reference_imgs = []
+    adjacency_matrix = None
+    keypoints, descriptors, laf = {}, {}, {}
+
+
+    ### CAMERA STREAM OR RUN SIMULATOR
+    if cfg.USE_SERVER == True:
+        stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+    else:
+        stream_proc = subprocess.Popen(["python", "./simulator.py"])
+    #stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+
+
+    ### RUN IN PARALLEL KEYFRAME SELECTION AND MAPPING
     #multiprocessing.freeze_support()
+
+    # Register classes for variables to be shared between processes
     CustomManager.register('KeyFrameList', KeyFrameList)
+
     with CustomManager() as manager:
-        # create a shared custom class instance
         keyframes_list = manager.KeyFrameList()
-        #print(keyframes_list)
-
-
-        update_process = multiprocessing.Process(target=k_frame, args=("imgs/cam0", keyframes_list,))
+        update_process = multiprocessing.Process(target=KFrameSelProcess, args=("imgs/cam0", keyframes_list,))
         print_process = multiprocessing.Process(target=print_list_length, args=(keyframes_list,))
-
         update_process.start()
         print_process.start()
-
         update_process.join()
         print_process.join()
-        print('ok')
+
+        logger.info('END')

@@ -24,23 +24,32 @@ class Inizialization:
         """
         self.cfg_file = cfg_file
 
-    #@staticmethod
-    #def setup_logger(log_level) -> None:
-    #    log_dir = Path("logs")
-    #    log_dir.mkdir(exist_ok=True)
-    #    today = date.today()
-    #    now = datetime.now()
-    #    current_date = f"{today.strftime('%Y_%m_%d')}_{now.strftime('%H:%M')}"
-    #    log_file = log_dir / f"colmapslam_{current_date}.log"
-    #    logging.basicConfig(
-    #        level=log_level,
-    #        format="%(asctime)s | %(levelname)s | %(message)s",
-    #        datefmt="%Y-%m-%d %H:%M:%S",
-    #        handlers=[
-    #            logging.FileHandler(log_file),
-    #            logging.StreamHandler(),
-    #        ],
-    #    )
+    @staticmethod
+    def setup_logger(log_level) -> None:
+        #log_dir = Path("logs")
+        #log_dir.mkdir(exist_ok=True)
+        #today = date.today()
+        #now = datetime.now()
+        #current_date = f"{today.strftime('%Y_%m_%d')}_{now.strftime('%H:%M')}"
+        #log_file = log_dir / f"colmapslam_{current_date}.log"
+        #logging.basicConfig(
+        #    level=log_level,
+        #    format="%(asctime)s | %(levelname)s | %(message)s",
+        #    datefmt="%Y-%m-%d %H:%M:%S",
+        #    handlers=[
+        #        logging.FileHandler(log_file),
+        #        logging.StreamHandler(),
+        #    ],
+        #)
+        if os.path.exists('debug.log'):
+            os.remove('debug.log')
+        logging.basicConfig(filename='debug.log', level=logging.DEBUG,
+                            format='%(asctime)s - %(levelname)s - %(message)s')
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG)
+        console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(console_formatter)
+        logging.getLogger().addHandler(console_handler)
 
     def parse_config_file(self) -> edict:
         """

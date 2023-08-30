@@ -38,27 +38,21 @@ class KeyFrame:
         #self.slave_cameras = {}
         self.slave_cameras_POS = {}
 
-    @property
     def image_name(self):
         return self._image_name
 
-    @property
     def image_id(self):
         return self._image_id
 
-    @property
     def keyframe_id(self):
         return self._keyframe_id
 
-    @property
     def keyframe_name(self):
         return self._keyframe_name
 
-    @property
     def camera_id(self):
         return self._camera_id
 
-    @property
     def oriented(self):
         return self._oriented
 
@@ -96,15 +90,12 @@ class KeyFrameList:
     def __repr__(self) -> str:
         return f"KeyframeList with {len(self._keyframes)} keyframes."
 
-    @property
     def keyframes(self):
         return self._keyframes
 
-    @property
     def keyframes_names(self):
         return [kf.image_name for kf in self._keyframes]
 
-    @property
     def keyframes_ids(self):
         return [kf.keyframe_id for kf in self._keyframes]
 
