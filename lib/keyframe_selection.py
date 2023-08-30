@@ -275,11 +275,10 @@ class KeyFrameSelector:
                 self.timer.update("innovation check")
 
             return False
-
+        
         if self.median_match_dist > self.innovation_threshold_pix:
             existing_keyframe_number = len(os.listdir(self.keyframes_dir))
             for c in range(self.n_camera):
-                print("camera", c)
                 current_img = self.img2.name
                 imgs_folder = self.img2.parent.parent
                 shutil.copy(
@@ -287,6 +286,7 @@ class KeyFrameSelector:
                     self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
                 )
             camera_id = 1
+
             new_keyframe = KeyFrame(
                 self.img2,
                 existing_keyframe_number,
@@ -294,11 +294,13 @@ class KeyFrameSelector:
                 camera_id,
                 self.pointer + self.delta + 1,
             )
+            logger.info('ok3')
             self.keyframes_list.add_keyframe(new_keyframe)
+            logger.info('ok4')
             # self.keyframes_list.append(new_keyframe)
-            logger.info(
-                f"Frame accepted. New_keyframe image_id: {new_keyframe.image_id}"
-            )
+            #logger.info(
+            #    f"Frame accepted. New_keyframe image_id: {new_keyframe.image_id}"
+            #)
 
             self.pointer += 1 + self.delta
             self.delta = 0
@@ -328,17 +330,20 @@ class KeyFrameSelector:
                 print("Failed reading images (opencv). Trying again ..")
                 
 
-        try:
-            if not self.extract_features(img1, img2):
-                raise RuntimeError("Error in extract_features")
-            if not self.match_features():
-                raise RuntimeError("Error in match_features")
-            keyframe_accepted = self.innovation_check()
+        #try:
+        #    if not self.extract_features(img1, img2):
+        #        raise RuntimeError("Error in extract_features")
+        #    if not self.match_features():
+        #        raise RuntimeError("Error in match_features")
+        #    keyframe_accepted = self.innovation_check()
+        self.extract_features(img1, img2)
+        self.match_features()
+        keyframe_accepted = self.innovation_check()
 
-        except RuntimeError as e:
-            keyframe_accepted = False
-            logger.error(e)
-            return self.keyframes_list, self.pointer, self.delta, None
+        #except RuntimeError as e:
+        #    keyframe_accepted = False
+        #    logger.error(e)
+        #    return self.keyframes_list, self.pointer, self.delta, None
 
         if self.viz_res_path is not None or self.realtime_viz:
             img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED)
