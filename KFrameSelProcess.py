@@ -20,7 +20,7 @@ from watchdog.events import FileSystemEventHandler
 new_images = []
 class NewFileHandler(FileSystemEventHandler):
 
-    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger):
+    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs):
         self.imgs = imgs
         self.pointer = pointer
         self.delta = delta
@@ -28,6 +28,8 @@ class NewFileHandler(FileSystemEventHandler):
         self.keyframe_selector = keyframe_selector
         self.screen = screen
         self.logger = logger
+        self.cfg = cfg
+        self.processed_imgs = processed_imgs
 
     @staticmethod
     def display_image(image_path):
@@ -53,10 +55,10 @@ class NewFileHandler(FileSystemEventHandler):
             # Set first frame as keyframe
             img0 = self.imgs[self.pointer]
             existing_keyframe_number = 0
-            for c in range(cfg.N_CAMERAS):
+            for c in range(self.cfg.N_CAMERAS):
                 shutil.copy(
                     img0.parent.parent / f"cam{c}" / img0.name,
-                    cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+                    self.cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
                 )
             camera_id = 1
             if img0 not in keyframes_list.keyframes_names:
@@ -71,14 +73,14 @@ class NewFileHandler(FileSystemEventHandler):
                 )
                 return
         elif len(self.imgs) >= 2:
-            if len(self.keyframe_selector.keyframes_list) == 0:
+            if len(self.keyframe_selector.keyframes_list.keyframes()) == 0:
                 # Set first frame as keyframe
                 img0 = self.imgs[self.pointer]
                 existing_keyframe_number = 0
-                for c in range(cfg.N_CAMERAS):
+                for c in range(self.cfg.N_CAMERAS):
                     shutil.copy(
                         img0.parent.parent / f"cam{c}" / img0.name,
-                        cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+                        self.cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
                     )
                 camera_id = 1
                 #if img0 not in self.keyframe_selector.keyframes_list.keyframes_names:
@@ -88,7 +90,7 @@ class NewFileHandler(FileSystemEventHandler):
                         existing_keyframe_number,
                         utils.Id2name(existing_keyframe_number),
                         camera_id,
-                        self.pointer + delta + 1,
+                        self.pointer + self.delta + 1,
                     )
                 )
                 print('start loop')
@@ -100,11 +102,11 @@ class NewFileHandler(FileSystemEventHandler):
                 # Only new images found in the target folder are processed.
                 # No more than MAX_IMG_BATCH_SIZE imgs are processed.
                 print('here')
-                if img not in processed_imgs and c == 0:
-                    processed_imgs.append(img)
+                if img not in  self.processed_imgs and c == 0:
+                    self.processed_imgs.append(img)
                     processed += 1
                     continue
-                if img in processed_imgs or processed >= cfg.MAX_IMG_BATCH_SIZE:
+                if img in self.processed_imgs or processed >= self.cfg.MAX_IMG_BATCH_SIZE:
                     continue
                 
 
@@ -112,7 +114,7 @@ class NewFileHandler(FileSystemEventHandler):
                 img2 = img
                 self.logger.info(f"\nProcessing image pair ({img1}, {img2})")
                 self.logger.info(f"pointer {self.pointer} c {c}")
-                old_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
+                old_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
                 (
                     keyframes_list,
                     self.pointer,
@@ -129,7 +131,7 @@ class NewFileHandler(FileSystemEventHandler):
                 #    keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
                 #    #with open('keyframes.txt', 'a') as kfm_imgs:
                 #    #    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
-                processed_imgs.append(img)
+                self.processed_imgs.append(img)
                 processed += 1
 
                 #cv2.setWindowTitle("Keyframe Selection", 'ciao')
@@ -187,7 +189,7 @@ def KFrameSelProcess(
     screen = []
     new_images.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
     screen.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
-    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger)
+    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs)
     observer = Observer()
     observer.schedule(event_handler, path=cfg.IMGS_FROM_SERVER / "cam0", recursive=False)
     observer.start()
