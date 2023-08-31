@@ -277,10 +277,13 @@ class KeyFrameSelector:
             return False
         
         if self.median_match_dist > self.innovation_threshold_pix:
-            existing_keyframe_number = len(os.listdir(self.keyframes_dir))
+            #existing_keyframe_number = len(os.listdir(self.keyframes_dir))
+            existing_keyframe_number = len(self.keyframes_list.keyframes())
             for c in range(self.n_camera):
                 current_img = self.img2.name
                 imgs_folder = self.img2.parent.parent
+                print(imgs_folder / f"cam{c}" / current_img)
+                print(self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}")
                 shutil.copy(
                     imgs_folder / f"cam{c}" / current_img,
                     self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
@@ -294,9 +297,8 @@ class KeyFrameSelector:
                 camera_id,
                 self.pointer + self.delta + 1,
             )
-            logger.info('ok3')
+
             self.keyframes_list.add_keyframe(new_keyframe)
-            logger.info('ok4')
             # self.keyframes_list.append(new_keyframe)
             #logger.info(
             #    f"Frame accepted. New_keyframe image_id: {new_keyframe.image_id}"
@@ -346,7 +348,7 @@ class KeyFrameSelector:
         #    return self.keyframes_list, self.pointer, self.delta, None
 
         if self.viz_res_path is not None or self.realtime_viz:
-            img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED)
+            img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED) #img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED)
             match_img = make_match_plot(img, self.mpts1, self.mpts2)
             traj_img = make_traj_plot('./keyframes.pkl', './points3D.pkl', match_img.shape[1], match_img.shape[0])
             if keyframe_accepted:
@@ -355,25 +357,25 @@ class KeyFrameSelector:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Frame rejected"
 
         if self.realtime_viz:
-            cv2.setWindowTitle("Keyframe Selection", win_name)
-            #cv2.imshow("Keyframe Selection", traj_img)
+            #cv2.setWindowTitle("Keyframe Selection", win_name)
             conc = np.concatenate((match_img, traj_img), axis=1)
             height, width, channels = conc.shape
             conc = cv2.resize(conc, (MAX_WINDOW_SIZE, int(height*MAX_WINDOW_SIZE/width)))
-            cv2.imshow("Keyframe Selection", conc)
-            if cv2.waitKey(1) == ord("q"):
-                sys.exit()
-
-        if self.viz_res_path is not None:
-            #out_name = f"{self.img1.stem}_{win_name}.jpg"
-            out_name = f"{self.img1.stem}.jpg"
-            cv2.imwrite(str(self.viz_res_path / out_name), conc)
+            #cv2.imshow("Keyframe Selection", conc)
+            #if cv2.waitKey(1) == ord("q"):
+            #    sys.exit()
+#
+        #if self.viz_res_path is not None:
+        #    #out_name = f"{self.img1.stem}_{win_name}.jpg"
+        #    out_name = f"{self.img1.stem}.jpg"
+        #    cv2.imwrite(str(self.viz_res_path / out_name), conc)
 
         self.clear_matches()
 
         time = self.timer.print("Keyframe Selection")
 
-        return self.keyframes_list, self.pointer, self.delta, time
+
+        return self.keyframes_list, self.pointer, self.delta, time, conc
 
 
 def KeyFrameSelConfFile(cfg_edict) -> edict:

@@ -10,11 +10,12 @@ from PIL import Image, ImageOps
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 50
+SKIP = 0
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
 ):
+    #processed = 0
     for i in range(len(imgs)):
         if i < SKIP:
             continue
@@ -39,6 +40,9 @@ def run_simulator(
                 rgb_im = ImageOps.equalize(rgb_im)
             rgb_im.save(Path(output_dir) / f"cam{c}" / f"{Path(im_name).stem}.{ext}")
             time.sleep(sleep)
+
+            #processed += 1
+            #print(f'TIME FRAMES SIM = {processed*0.2}')
 
     logging.info("No more images available")
 
