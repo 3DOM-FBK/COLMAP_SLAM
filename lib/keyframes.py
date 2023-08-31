@@ -121,8 +121,13 @@ class KeyFrameList:
         return None
 
     def get_keyframe_by_id(self, keyframe_id: int) -> KeyFrame:
+        #print('keyframe_id', keyframe_id)
+        #print('len(self._keyframes)', len(self._keyframes))
+        #print('ciao')
         for keyframe in self._keyframes:
-            if keyframe.keyframe_id == keyframe_id:
+            #print('cio')
+            #print('keyframe.keyframe_id()', keyframe.keyframe_id())
+            if keyframe.keyframe_id() == keyframe_id:
                 return keyframe
         return None
 

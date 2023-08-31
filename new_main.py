@@ -59,19 +59,10 @@ from lib import (
     utils,
 )
 
-import KFrameSelProcess
+import KFrameSelProcess, MappingProcess
 
 
-def print_list_length(keyframes_list):
-    logger = logging.getLogger(__name__)
-    for i in range(5):
-        time.sleep(5)
-        for i in range(10):
-            logger.info('ciao')
 
-        #ob = keyframes_list.get_keyframe_by_id(1)
-        #for k in keyframes_list.keyframes:
-        print("File list length:",  len(keyframes_list.keyframes()))
         
 
 class CustomManager(BaseManager):
@@ -130,6 +121,8 @@ if __name__ == '__main__':
 
     with CustomManager() as manager:
         keyframes_list = manager.KeyFrameList()
+        newer_imgs = multiprocessing.Manager().Value('b', False)
+        lock = multiprocessing.Manager().Lock()
         update_process = multiprocessing.Process(
                                                 target=KFrameSelProcess.KFrameSelProcess,
                                                 args=(
@@ -141,8 +134,22 @@ if __name__ == '__main__':
                                                     processed_imgs,
                                                     logger,
                                                     kfm_batch,
+                                                    newer_imgs,
+                                                    lock,
                                                     ))
-        print_process = multiprocessing.Process(target=print_list_length, args=(keyframes_list,))
+        print_process = multiprocessing.Process(target=MappingProcess.MappingProcess, args=(
+                                                                                                keyframes_list,
+                                                                                                logger,
+                                                                                                cfg,
+                                                                                                newer_imgs,
+                                                                                                first_colmap_loop,
+                                                                                                lock,
+                                                                                                SEQUENTIAL_OVERLAP,
+                                                                                                adjacency_matrix,
+                                                                                                keypoints,
+                                                                                                descriptors,
+                                                                                                laf,
+                                                                                                ))
         update_process.start()
         print_process.start()
         update_process.join()
