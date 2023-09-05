@@ -20,7 +20,7 @@ from watchdog.events import FileSystemEventHandler
 new_images = []
 class NewFileHandler(FileSystemEventHandler):
 
-    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock):
+    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock, keyframes_dict):
         self.imgs = imgs
         self.pointer = pointer
         self.delta = delta
@@ -33,6 +33,7 @@ class NewFileHandler(FileSystemEventHandler):
         self.newer_imgs = newer_imgs
         self.kfm_batch = kfm_batch
         self.lock = lock
+        self.keyframes_dict = keyframes_dict
 
     @staticmethod
     def display_image(image_path):
@@ -77,7 +78,30 @@ class NewFileHandler(FileSystemEventHandler):
                             self.pointer + delta + 1,
                         )
                     )
+
+                    self.keyframes_dict[utils.Id2name(existing_keyframe_number)] = {
+                        "image_name" : img0, 
+                        "keyframe_id" : existing_keyframe_number, 
+                        "keyframe_name" : utils.Id2name(existing_keyframe_number), 
+                        "camera_id" : camera_id, 
+                        "image_id" : self.pointer + self.delta + 1,
+
+                        "oriented" : False,
+                        "n_keypoints" : 0,
+                        "GPSLatitude" : "-",
+                        "GPSLongitude" : "-",
+                        "GPSAltitude" : "-",
+                        "enuX" : "-",
+                        "enuY" : "-",
+                        "enuZ" : "-",
+                        "slamX" : "-",
+                        "slamY" : "-",
+                        "slamZ" : "-",
+                        "slave_cameras_POS" : {},
+                    }
+
                     return
+                
             elif len(self.imgs) >= 2:
                 if len(self.keyframe_selector.keyframes_list.keyframes()) == 0:
                     # Set first frame as keyframe
@@ -99,6 +123,28 @@ class NewFileHandler(FileSystemEventHandler):
                             self.pointer + self.delta + 1,
                         )
                     )
+
+                    self.keyframes_dict[utils.Id2name(existing_keyframe_number)] = {
+                        "image_name" : img0, 
+                        "keyframe_id" : existing_keyframe_number, 
+                        "keyframe_name" : utils.Id2name(existing_keyframe_number), 
+                        "camera_id" : camera_id, 
+                        "image_id" : self.pointer + self.delta + 1,
+
+                        "oriented" : False,
+                        "n_keypoints" : 0,
+                        "GPSLatitude" : "-",
+                        "GPSLongitude" : "-",
+                        "GPSAltitude" : "-",
+                        "enuX" : "-",
+                        "enuY" : "-",
+                        "enuZ" : "-",
+                        "slamX" : "-",
+                        "slamY" : "-",
+                        "slamZ" : "-",
+                        "slave_cameras_POS" : {},
+                    }
+
                     #print('start loop')
                     ##################################################### HERE THE PROBLEM!!!!
 
@@ -121,13 +167,18 @@ class NewFileHandler(FileSystemEventHandler):
                     #self.logger.info(f"\nProcessing image pair ({img1}, {img2})")
                     #self.logger.info(f"pointer {self.pointer} c {c}")
                     old_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
+                    #old_pointer = self.pointer
                     (
                         keyframes_list,
                         self.pointer,
                         self.delta,
                         kfs_time,
-                        conc
-                    ) = self.keyframe_selector.run(img1, img2)
+                        conc,
+                        #keyframes_dict,
+                    ) = self.keyframe_selector.run(img1, img2, self.keyframes_dict)
+                    #new_pointer = self.pointer
+                    #if new_pointer != old_pointer:
+                    #    self.keyframes_dict[img.name] = 'ciao'
 
                     # Set if new keyframes are added
                     new_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
@@ -135,6 +186,7 @@ class NewFileHandler(FileSystemEventHandler):
                         #with self.lock:
                         #    self.newer_imgs.value = True ##############################################  NOT USED ANYMORE!!!!
                         self.kfm_batch.append(img.name)
+                        
                         #keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
                         #with open('keyframes.txt', 'a') as kfm_imgs:
                         #    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
@@ -164,6 +216,7 @@ def KFrameSelProcess(
         kfm_batch,
         newer_imgs,
         lock,
+        keyframes_dict,
         ):
 
     # Setup keyframe selector
@@ -199,7 +252,7 @@ def KFrameSelProcess(
     screen = []
     new_images.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
     screen.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
-    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock)
+    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock, keyframes_dict)
     observer = Observer()
     observer.schedule(event_handler, path=cfg.IMGS_FROM_SERVER / "cam0", recursive=False)
     observer.start()

@@ -119,11 +119,12 @@ if __name__ == '__main__':
     # Register classes for variables to be shared between processes
     CustomManager.register('KeyFrameList', KeyFrameList)
 
-    with CustomManager() as manager:
-        keyframes_list = manager.KeyFrameList()
-        newer_imgs = multiprocessing.Manager().Value('b', False)
-        lock = multiprocessing.Manager().Lock()
-        processed_imgs = multiprocessing.Manager().list()
+    with CustomManager() as Cmanager, multiprocessing.Manager() as manager:
+        keyframes_dict = manager.dict()
+        keyframes_list = Cmanager.KeyFrameList()
+        newer_imgs = manager.Value('b', False)
+        lock = manager.Lock()
+        processed_imgs = manager.list()
         update_process = multiprocessing.Process(
                                                 target=KFrameSelProcess.KFrameSelProcess,
                                                 args=(
@@ -137,6 +138,7 @@ if __name__ == '__main__':
                                                     kfm_batch,
                                                     newer_imgs,
                                                     lock,
+                                                    keyframes_dict,
                                                     ))
         print_process = multiprocessing.Process(target=MappingProcess.MappingProcess, args=(
                                                                                                 keyframes_list,
@@ -153,6 +155,7 @@ if __name__ == '__main__':
                                                                                                 init,
                                                                                                 SNAPSHOT_DIR,
                                                                                                 processed_imgs,
+                                                                                                keyframes_dict,
                                                                                                 ))
         update_process.start()
         print_process.start()

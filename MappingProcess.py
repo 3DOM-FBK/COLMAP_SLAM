@@ -28,7 +28,23 @@ from pathlib import Path
 from pyquaternion import Quaternion
 from easydict import EasyDict as edict
 
-def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, lock, SEQUENTIAL_OVERLAP, adjacency_matrix, keypoints, descriptors, laf, init, SNAPSHOT_DIR, processed_imgs):
+def MappingProcess(
+        keyframes_list, 
+        logger, 
+        cfg, 
+        newer_imgs, 
+        first_colmap_loop, 
+        lock, 
+        SEQUENTIAL_OVERLAP, 
+        adjacency_matrix, 
+        keypoints, 
+        descriptors, 
+        laf, 
+        init, 
+        SNAPSHOT_DIR, 
+        processed_imgs,
+        keyframes_dict,
+        ):
     #logger = logging.getLogger(__name__)
     #for i in range(5):
     #    time.sleep(5)
@@ -56,34 +72,62 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
     colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 
 
+    # OK FUNZIONA
+    #while True:
+#
+    #    print('Inside while')
+    #    print('len()', len(keyframes_dict.keys()))
+    #    print(newer_imgs)
+    #    if len(keyframes_dict.keys()) == 10:
+    #        with lock:
+    #            for key in keyframes_dict.keys():
+    #                a = keyframes_dict[key]
+    #                a['slamX'] = 7
+    #                keyframes_dict[key] = a
+    #            newer_imgs.value = True
+    #    
+    #        time.sleep(5)
+    #        for key in keyframes_dict.keys():
+    #            print(key, keyframes_dict[key]['slamX'])
+    #        print('ok')
+    #        print('ok')
+    #        quit()
 
-    while True:
-
-        print('Inside while')
-        print('len()', len(keyframes_list.keyframes()))
-        print(newer_imgs)
-        if len(keyframes_list.keyframes()) == 10:
-            with lock:
-                keyframes_list.add_keyframe(KeyFrame('5','5','5','5','5'))
-                c = keyframes_list.get_keyframe_by_name('5')
-                c.slamY = 7
-                newer_imgs.value = True
-        
-            time.sleep(3)
-            o = keyframes_list.get_keyframe_by_name('5')
-            print('o.slamX, o.slamY, o.slamZ')
-            print(o.slamX, o.slamY, o.slamZ)
-            print('newer_imgs.value', newer_imgs.value)
-            quit()
-
-
+    #while True: NON FUNZIONA
+#
+    #    print('Inside while')
+    #    print('len()', len(keyframes_list.keyframes()))
+    #    if len(keyframes_list.keyframes()) == 10:
+    #        with lock:
+    #            for i in range(len(keyframes_list.keyframes())):
+    #                k = keyframes_list.keyframes()[i]
+    #                image_name = k._image_name
+    #                image_id = k._image_id
+    #                keyframe_id = k._keyframe_id
+    #                keyframe_name = k._keyframe_name
+    #                camera_id = k._camera_id
+    #                kframe_mod = KeyFrame(image_name, keyframe_id, keyframe_name, camera_id, image_id)
+    #                kframe_mod.slamX = 7
+    #                keyframes_list.keyframes()[i] = kframe_mod
+    #                print(kframe_mod.slamX)
+    #                print(keyframes_list.keyframes()[i].slamX)
+    #    
+    #        time.sleep(5)
+    #        for i in range(len(keyframes_list.keyframes())):
+    #            print(i, keyframes_list.keyframes()[i].slamX)
+    #        print('ok')
+    #        print('ok')
+    #        quit()
 
     while True:
         #print("Inside while")
         # INCREMENTAL RECONSTRUCTION
         #print("INCREMENTAL RECONSTRUCTION")
         #kfrms = os.listdir(cfg.KF_DIR_BATCH / "cam0")
-        kfrms = [kf.keyframe_name() for kf in keyframes_list.keyframes()]
+        with lock:
+            #kfrms = [kf.keyframe_name() for kf in keyframes_list.keyframes()]
+            kfrms = keyframes_dict.keys()
+
         #print(kfrms)
         #print(len(keyframes_list.keyframes()))
         #print(keyframes_list.keyframes()[0]._keyframe_id)
@@ -154,6 +198,9 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
                 )
 
                 true_indices = np.where(adjacency_matrix)
+                print('adjacency_matrix')
+                print(adjacency_matrix)
+                print('adjacency_matrix.shape', adjacency_matrix.shape)
 
                 #matcher.PlotAdjacencyMatrix(adjacency_matrix)
 
@@ -173,6 +220,8 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
                     if l > m and l > old_adjacency_matrix_shape - 1:
                         kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
                         kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
+                        #kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
+                        #kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
                         i = inverted_dict[f"cam0/{kfm2_name}"]
                         j = inverted_dict[f"cam0/{kfm1_name}"]
                         ij.append((i-1, j-1))
@@ -455,47 +504,55 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
         q0_quat = Quaternion(q0)
         #print('q0_quat', q0_quat)
         #print('t0', t0)
-        #for key in oriented_dict:
-        #    cam, keyframe_name = key.split("/", 1)
-        #    qi, ti = oriented_dict[key][1]
-        #    ti = ti.reshape((3, 1))
-        #    qi_quat = Quaternion(qi)
-        #    ti_in_q0_ref = (
-        #        -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-        #    )
-        #    with lock:
-        #        keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe_name)
-        #        camera = int(cam[3:])
-        #        keyframes_list.add_keyframe(KeyFrame('5','5','5','5','5'))
-        #        prova = keyframes_list.get_keyframe_by_name('5')
-        #        prova.slamX = 7
-        #    
-        #        if camera == 0:
-        #            print("newer_imgs", newer_imgs)
-        #            newer_imgs.value = True
-        #            #keyframe_obj.slamX = ti_in_q0_ref[0, 0]
-        #            #keyframe_obj.slamY = ti_in_q0_ref[1, 0]
-        #            #keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
-        #            keyframe_obj.time_last_modification = '0000 aiuto'
-        #            keyframe_obj.bug(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
-        #            
-        #            print('cam0', keyframe_obj.image_name())
-        #            print(keyframe_obj.slamX, keyframe_obj.slamY, keyframe_obj.slamZ)
-        #            print("keyframes_list.debug()")
-        #            print("keyframe_obj.time_last_modification", keyframe_obj.time_last_modification)
-        #            #keyframes_list.debug()
-        #            #quit()
-#
-#
-        #            obj_nuovo = keyframes_list.get_keyframe_by_name(keyframe_name)
-        #            print('obj_nuovo', obj_nuovo.slamX, obj_nuovo.slamY, obj_nuovo.slamZ)
-        #            quit()
-#
-#
-        #        else:
-        #            keyframe_obj.slave_cameras_POS[camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
-        #            print('cam1', keyframe_obj.image_name())
-        #            print(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+        for key in oriented_dict:
+            cam, keyframe_name = key.split("/", 1)
+            qi, ti = oriented_dict[key][1]
+            ti = ti.reshape((3, 1))
+            qi_quat = Quaternion(qi)
+            ti_in_q0_ref = (
+                -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+            )
+            with lock: 
+                #keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe_name)
+                camera = int(cam[3:])
+                #keyframes_list.add_keyframe(KeyFrame('5','5','5','5','5'))
+                #prova = keyframes_list.get_keyframe_by_name('5')
+                #prova.slamX = 7
+            
+                if camera == 0:
+                    #print("newer_imgs", newer_imgs)
+                    #newer_imgs.value = True
+                    a = keyframes_dict[keyframe_name]
+                    a['slamX'] = ti_in_q0_ref[0, 0]
+                    a['slamY'] = ti_in_q0_ref[1, 0]
+                    a['slamZ'] = ti_in_q0_ref[2, 0]
+                    keyframes_dict[keyframe_name] = a
+                    #keyframe_obj.slamX = ti_in_q0_ref[0, 0]
+                    #keyframe_obj.slamY = ti_in_q0_ref[1, 0]
+                    #keyframe_obj.slamZ = ti_in_q0_ref[2, 0]
+                    #keyframe_obj.time_last_modification = '0000 aiuto'
+                    #keyframe_obj.bug(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+                    #
+                    #print('cam0', keyframe_obj.image_name())
+                    #print(keyframe_obj.slamX, keyframe_obj.slamY, keyframe_obj.slamZ)
+                    #print("keyframes_list.debug()")
+                    #print("keyframe_obj.time_last_modification", keyframe_obj.time_last_modification)
+                    #keyframes_list.debug()
+                    #quit()
+
+
+                    #obj_nuovo = keyframes_list.get_keyframe_by_name(keyframe_name)
+                    #print('obj_nuovo', obj_nuovo.slamX, obj_nuovo.slamY, obj_nuovo.slamZ)
+                    #quit()
+
+
+                else:
+                    a = keyframes_dict[keyframe_name]
+                    a['slave_cameras_POS'][camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+                    keyframes_dict[keyframe_name] = a
+                    #keyframe_obj.slave_cameras_POS[camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
+                    #print('cam1', keyframe_obj.image_name())
+                    #print(ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
         #
         #        print("keyframes_list.debug()")
         #        keyframes_list.debug()
@@ -509,67 +566,79 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
 #
 #
         ##print('DEBUG slamX', keyframes_list.keyframes()[1].slamX)
-        #oriented_dict_cam0 = {}
-        #for key in oriented_dict:
-        #    cam, name = key.split("/", 1)
-        #    id, extension = name.split(".", 1)
-        #    id = int(id)
-        #    if cam == "cam0":
-        #        oriented_dict_cam0[id] = oriented_dict[key]
-        #oriented_dict = oriented_dict_cam0
+        oriented_dict_cam0 = {}
+        for key in oriented_dict:
+            cam, name = key.split("/", 1)
+            id, extension = name.split(".", 1)
+            id = int(id)
+            if cam == "cam0":
+                #oriented_dict_cam0[id] = oriented_dict[key]
+                oriented_dict_cam0[name] = oriented_dict[key]
+        oriented_dict = oriented_dict_cam0
 #
-        #oriented_dict_list = list(oriented_dict.keys())
-        #oriented_dict_list.sort()
-        #total_kfs_number = len(kfrms)
-        #
-        ##oriented_kfs_len = len(oriented_dict_list)
-        #ori_ratio = oriented_kfs_len / total_kfs_number
+        oriented_dict_list = list(oriented_dict.keys())
+        oriented_dict_list.sort()
+        total_kfs_number = len(kfrms)
+        
+        #oriented_kfs_len = len(oriented_dict_list)
+        ori_ratio = oriented_kfs_len / total_kfs_number
 #
-        #logger.info(
-        #    f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
-        #)
-        #print(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
+        logger.info(
+            f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+        )
+        print(f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}")
   #
-        ## Set scale factor
-        #if cfg.N_CAMERAS > 1:
-        #    baselines = []
-#
-        #    #print('DEBUG2')
-        #    #for ciao in keyframes_list.keyframes():
-        #    #    print('debug',ciao.image_name())
-        #    #    print('debug',ciao.keyframe_id())
-        #    #    print('debug',ciao.slamX)
-        #    #    print('debug',ciao.slamX)
-        #    #print("keyframes_list.debug()")
-        #    #keyframes_list.debug()
-#
-        #    for keyframe_id in oriented_dict_list:
-        #        print('keyframe_id', keyframe_id)
-        #        keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
-        #        print('keyframe_obj.keyframe_name()', keyframe_obj.keyframe_name())
-        #        x0 = keyframe_obj.slamX
-        #        y0 = keyframe_obj.slamY
-        #        z0 = keyframe_obj.slamZ
-        #        print('slam', x0, y0, z0)
-        #        try:
-        #            x1 = keyframe_obj.slave_cameras_POS[1][0]
-        #            y1 = keyframe_obj.slave_cameras_POS[1][1]
-        #            z1 = keyframe_obj.slave_cameras_POS[1][2]
-        #            print('x1, y1, z1', x1, y1, z1)
-        #            d = ((x0-x1)**2 + (y0-y1)**2 + (z0-z1)**2)**0.5
-        #            baselines.append(d)
-        #        except:
-        #            pass
-        #    
-        #    quit() #####################################################################################
-        #    #print(baselines)
-        #    #print(np.mean(baselines))
-        #    scale = cfg.BASELINE_CAM0_CAM1 / np.mean(baselines)
-        #    print("mean", np.mean(np.array(baselines)*scale))
-        #    print("std", np.std(np.array(baselines)*scale))
-        #else:
-        #    scale = 1
-        #
+        # Set scale factor
+
+        if cfg.N_CAMERAS > 1:
+            baselines = []
+
+            #print('DEBUG2')
+            #for ciao in keyframes_list.keyframes():
+            #    print('debug',ciao.image_name())
+            #    print('debug',ciao.keyframe_id())
+            #    print('debug',ciao.slamX)
+            #    print('debug',ciao.slamX)
+            #print("keyframes_list.debug()")
+            #keyframes_list.debug()
+
+            #for k in keyframes_dict.keys():
+            #    print(k, 'check')
+            #    print(keyframes_dict[k])
+            #quit()
+
+            for keyframe_id in oriented_dict_list:
+                print('keyframe_id', keyframe_id)
+                print(keyframes_dict[keyframe_id])
+                k = keyframes_dict[keyframe_id]
+ 
+                #keyframe_obj = keyframes_list.get_keyframe_by_id(keyframe_id)
+                #print('keyframe_obj.keyframe_name()', keyframe_obj.keyframe_name())
+                x0 = k['slamX']
+                y0 = k['slamY']
+                z0 = k['slamZ']
+                print('slam', x0, y0, z0)
+                try:
+                    x1 = k['slave_cameras_POS'][1][0]
+                    y1 = k['slave_cameras_POS'][1][1]
+                    z1 = k['slave_cameras_POS'][1][2]
+                    print('x1, y1, z1', x1, y1, z1)
+                    d = ((x0-x1)**2 + (y0-y1)**2 + (z0-z1)**2)**0.5
+                    baselines.append(d)
+                except:
+                    pass
+            
+
+            #print(baselines)
+            #print(np.mean(baselines))
+            scale = cfg.BASELINE_CAM0_CAM1 / np.mean(baselines)
+            print("mean", np.mean(np.array(baselines)*scale))
+            print("std", np.std(np.array(baselines)*scale))
+
+        else:
+            scale = 1
+        
+        ########################################### DA REINSERIRE!!!!!!!!!!!!!!!!!!!!!!!!!!!
         ## Apply scale factor
         #with open("./scaled_keyframes1.txt", 'w') as out1, open("./scaled_keyframes2.txt", 'w') as out2:
         #    for keyframe_id in oriented_dict_list:
@@ -588,9 +657,9 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
         #            except:
         #                pass
 
-        # Save keyframes
-        with open("./keyframes.pkl", "wb") as f:
-            pickle.dump(keyframes_list, f)
+        ## Save keyframes
+        #with open("./keyframes.pkl", "wb") as f:
+        #    pickle.dump(keyframes_list, f)
 
         # Report 3D points in ref system of the first image
         with open(f"{cfg.OUT_DIR_BATCH}/points3D.txt", "r") as file:
@@ -613,6 +682,8 @@ def MappingProcess(keyframes_list, logger, cfg, newer_imgs, first_colmap_loop, l
 
         kfm_batch = []
         first_colmap_loop = False
+
+        print('finished loop')
 
         ## REINITIALIZE SLAM
         #if (

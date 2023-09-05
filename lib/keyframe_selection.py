@@ -54,6 +54,7 @@ class KeyFrameSelector:
         error_threshold: int = 4,
         iterations: int = 1000,
         n_camera: int = 1,
+        #keyframes_dict: dict = {},
 
     ) -> None:
         """
@@ -88,6 +89,7 @@ class KeyFrameSelector:
         self.error_threshold=error_threshold
         self.iterations=iterations
         self.n_camera=n_camera
+        #self.keyframes_dict=keyframes_dict
         if n_camera > 1:
             for i in range(1, n_camera):
                 camera_img_path = Path(keyframes_dir).parent / Path(f"cam{i}")
@@ -263,7 +265,7 @@ class KeyFrameSelector:
             self.timer.update("matching")
         return True
 
-    def innovation_check(self) -> bool:
+    def innovation_check(self, keyframes_dict) -> bool:
         match_dist = np.linalg.norm(self.mpts1 - self.mpts2, axis=1)
         self.median_match_dist = np.median(match_dist)
         #logger.info(f"median_match_dist: {self.median_match_dist:.2f}")
@@ -303,6 +305,27 @@ class KeyFrameSelector:
             #    f"Frame accepted. New_keyframe image_id: {new_keyframe.image_id}"
             #)
 
+            keyframes_dict[utils.Id2name(existing_keyframe_number)] = {
+                "image_name" : self.img2, 
+                "keyframe_id" : existing_keyframe_number, 
+                "keyframe_name" : utils.Id2name(existing_keyframe_number), 
+                "camera_id" : camera_id, 
+                "image_id" : self.pointer + self.delta + 1,
+
+                "oriented" : False,
+                "n_keypoints" : 0,
+                "GPSLatitude" : "-",
+                "GPSLongitude" : "-",
+                "GPSAltitude" : "-",
+                "enuX" : "-",
+                "enuY" : "-",
+                "enuZ" : "-",
+                "slamX" : "-",
+                "slamY" : "-",
+                "slamZ" : "-",
+                "slave_cameras_POS" : {},
+            }
+
             self.pointer += 1 + self.delta
             self.delta = 0
             if self.timer is not None:
@@ -318,7 +341,7 @@ class KeyFrameSelector:
 
             return False
 
-    def run(self, img1: Union[str, Path], img2: Union[str, Path]):
+    def run(self, img1: Union[str, Path], img2: Union[str, Path], keyframes_dict):
         self.timer = utils.AverageTimer()
 
         read = False
@@ -339,7 +362,7 @@ class KeyFrameSelector:
         #    keyframe_accepted = self.innovation_check()
         self.extract_features(img1, img2)
         self.match_features()
-        keyframe_accepted = self.innovation_check()
+        keyframe_accepted = self.innovation_check(keyframes_dict)
 
         #except RuntimeError as e:
         #    keyframe_accepted = False
@@ -349,7 +372,8 @@ class KeyFrameSelector:
         if self.viz_res_path is not None or self.realtime_viz:
             img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED) #img = cv2.imread(str(self.img2), cv2.IMREAD_UNCHANGED)
             match_img = make_match_plot(img, self.mpts1, self.mpts2)
-            traj_img = make_traj_plot('./keyframes.pkl', './points3D.pkl', match_img.shape[1], match_img.shape[0])
+            #traj_img = make_traj_plot('./keyframes.pkl', './points3D.pkl', match_img.shape[1], match_img.shape[0])
+            traj_img = make_traj_plot(keyframes_dict, './points3D.pkl', match_img.shape[1], match_img.shape[0])
             if keyframe_accepted:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Keyframe accepted"
             else:
@@ -374,7 +398,7 @@ class KeyFrameSelector:
         time = self.timer.print("Keyframe Selection")
 
 
-        return self.keyframes_list, self.pointer, self.delta, time, conc
+        return self.keyframes_list, self.pointer, self.delta, time, conc#, self.keyframes_dict
 
 
 def KeyFrameSelConfFile(cfg_edict) -> edict:

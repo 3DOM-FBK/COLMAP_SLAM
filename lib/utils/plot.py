@@ -3,7 +3,7 @@ import cv2
 import pickle
 import numpy as np
 
-def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, height : int):
+def make_traj_plot(keyframes_dict : dict, path_to_pts_obj : str, width : int, height : int):
     PAD = 50
     img = np.full((height, width, 3), (255,255,255), dtype=np.uint8)
     X = []
@@ -11,17 +11,23 @@ def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, he
 
     cloud_file = open('./cloud.txt', 'w')
 
-    if os.path.exists(path_to_kfm_obj) and os.path.exists(path_to_pts_obj):
-        with open(path_to_kfm_obj, "rb") as f:
-            my_list = pickle.load(f)
-            
-            for i in range(len(my_list)):
-                obj = my_list.__getitem__(i)
-                if obj.slamX != "-":
-                    X.append(float(obj.slamX))
-                if obj.slamZ != "-":
-                    Z.append(float(obj.slamZ))
-                    cloud_file.write(f'{float(obj.slamX)}, {float(obj.slamY)}, {float(obj.slamZ)}, 255, 0, 0\n')
+    if os.path.exists(path_to_pts_obj):
+        #with open(path_to_kfm_obj, "rb") as f:
+        #    my_list = pickle.load(f)
+        #    
+        #    for i in range(len(my_list)):
+        #        obj = my_list.__getitem__(i)
+        #        if obj.slamX != "-":
+        #            X.append(float(obj.slamX))
+        #        if obj.slamZ != "-":
+        #            Z.append(float(obj.slamZ))
+        #            cloud_file.write(f'{float(obj.slamX)}, {float(obj.slamY)}, {float(obj.slamZ)}, 255, 0, 0\n')
+
+        for key in keyframes_dict.keys():
+            if keyframes_dict[key]['slamX'] != "-":
+                X.append(keyframes_dict[key]['slamX'])
+                Z.append(keyframes_dict[key]['slamZ'])
+                cloud_file.write(f'{keyframes_dict[key]["slamX"]}, {keyframes_dict[key]["slamX"]}, {keyframes_dict[key]["slamX"]}, 255, 0, 0\n')
 
         MAX_X = max(np.abs(X))
         MAX_Z = max(np.abs(Z))
