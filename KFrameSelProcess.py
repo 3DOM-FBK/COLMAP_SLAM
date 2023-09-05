@@ -217,6 +217,7 @@ def KFrameSelProcess(
         newer_imgs,
         lock,
         keyframes_dict,
+        exit_bool,
         ):
 
     # Setup keyframe selector
@@ -267,6 +268,12 @@ def KFrameSelProcess(
                 sys.exit()
             #print('len(imgs)', len(imgs))
             #print(imgs)
+
+            with lock:
+                if exit_bool == True:
+                    sys.exit()
+                    observer.stop()
+                    quit()
 
 
     

@@ -44,6 +44,7 @@ def MappingProcess(
         SNAPSHOT_DIR, 
         processed_imgs,
         keyframes_dict,
+        exit_bool,
         ):
     #logger = logging.getLogger(__name__)
     #for i in range(5):
@@ -58,7 +59,7 @@ def MappingProcess(
 
 
 
-    time.sleep(5)
+    time.sleep(1)
     
     print("Setup local feature to use on keyframes")
     # Setup local feature to use on keyframes
@@ -119,6 +120,8 @@ def MappingProcess(
     #        print('ok')
     #        quit()
 
+    n_keyframes = 0
+
     while True:
         #print("Inside while")
         # INCREMENTAL RECONSTRUCTION
@@ -127,6 +130,7 @@ def MappingProcess(
         with lock:
             #kfrms = [kf.keyframe_name() for kf in keyframes_list.keyframes()]
             kfrms = keyframes_dict.keys()
+            print('keyframes', kfrms)
 
         #print(kfrms)
         #print(len(keyframes_list.keyframes()))
@@ -141,7 +145,11 @@ def MappingProcess(
         #kfrms.sort()
         #print('len(kfrms)', len(kfrms))
         #print('newer_imgs', newer_imgs.value)
-        if len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION:# and newer_imgs.value == True:
+        if len(kfrms) < cfg.MIN_KEYFRAME_FOR_INITIALIZATION or len(kfrms) == n_keyframes: # controllare che ci siano nuovi keyframes
+            continue
+
+        elif len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION:# and newer_imgs.value == True:
+            n_keyframes = len(kfrms)
             print("len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION and newer_imgs.value == True")
             print("len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION and newer_imgs.value == True")
             print("len(kfrms) >= cfg.MIN_KEYFRAME_FOR_INITIALIZATION and newer_imgs.value == True")
@@ -380,7 +388,10 @@ def MappingProcess(
 
         if not os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"):
             print("Failed Mapper. Reinitializing..")
-            quit() ####################################################################################### da togliere questo quit()
+            with lock:
+                exit_bool.value = True
+            quit()
+
             cfg = init.new_batch_solution()
             first_colmap_loop = True
             for im in processed_imgs:

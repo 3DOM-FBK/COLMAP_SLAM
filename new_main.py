@@ -79,87 +79,98 @@ if __name__ == '__main__':
     logger = logging.getLogger()
     logger.info('Setup logger finished')
 
-
-    ### INITIALIZATION
-    CFG_FILE = "config.ini"
-    init = utils.Inizialization(CFG_FILE)
-    cfg = init.inizialize()
-
-    SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
-    MAX_SEQUENTIAL_OVERLAP = 50
-    if cfg.SNAPSHOT == True:
-        SNAPSHOT_DIR = './frames'
-    elif cfg.SNAPSHOT == False:
-        SNAPSHOT_DIR = None
+    processed_imgs = []
 
 
-    kfm_batch = []
-    pointer = 0  # pointer points to the last oriented image
-    delta = 0  # delta is equal to the number of processed but not oriented imgs
-    first_colmap_loop = True
-    one_time = False  # It becomes true after the first batch of images is oriented
-    # The first batch of images define the reference system.
-    # At following epochs the photogrammetric model will be reported in this ref system.
-    reference_imgs = []
-    adjacency_matrix = None
-    keypoints, descriptors, laf = {}, {}, {}
+    while True:
+
+        print('INITIALIZATION')
+        for item in processed_imgs:
+            print(item)
+
+        ### INITIALIZATION
+        CFG_FILE = "config.ini"
+        init = utils.Inizialization(CFG_FILE)
+        cfg = init.inizialize()
+
+        SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
+        MAX_SEQUENTIAL_OVERLAP = 50
+        if cfg.SNAPSHOT == True:
+            SNAPSHOT_DIR = './frames'
+        elif cfg.SNAPSHOT == False:
+            SNAPSHOT_DIR = None
 
 
-    ### CAMERA STREAM OR RUN SIMULATOR
-    if cfg.USE_SERVER == True:
-        stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-    else:
-        stream_proc = subprocess.Popen(["python", "./simulator.py"])
-    #stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+        kfm_batch = []
+        pointer = 0  # pointer points to the last oriented image
+        delta = 0  # delta is equal to the number of processed but not oriented imgs
+        first_colmap_loop = True
+        one_time = False  # It becomes true after the first batch of images is oriented
+        # The first batch of images define the reference system.
+        # At following epochs the photogrammetric model will be reported in this ref system.
+        reference_imgs = []
+        adjacency_matrix = None
+        keypoints, descriptors, laf = {}, {}, {}
 
 
-    ### RUN IN PARALLEL KEYFRAME SELECTION AND MAPPING
-    multiprocessing.freeze_support()
+        ### CAMERA STREAM OR RUN SIMULATOR
+        if cfg.USE_SERVER == True:
+            stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+        else:
+            stream_proc = subprocess.Popen(["python", "./simulator.py"])
+        #stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
-    # Register classes for variables to be shared between processes
-    CustomManager.register('KeyFrameList', KeyFrameList)
 
-    with CustomManager() as Cmanager, multiprocessing.Manager() as manager:
-        keyframes_dict = manager.dict()
-        keyframes_list = Cmanager.KeyFrameList()
-        newer_imgs = manager.Value('b', False)
-        lock = manager.Lock()
-        processed_imgs = manager.list()
-        update_process = multiprocessing.Process(
-                                                target=KFrameSelProcess.KFrameSelProcess,
-                                                args=(
-                                                    cfg,
-                                                    keyframes_list,
-                                                    pointer,
-                                                    delta,
-                                                    SNAPSHOT_DIR,
-                                                    processed_imgs,
-                                                    logger,
-                                                    kfm_batch,
-                                                    newer_imgs,
-                                                    lock,
-                                                    keyframes_dict,
-                                                    ))
-        print_process = multiprocessing.Process(target=MappingProcess.MappingProcess, args=(
-                                                                                                keyframes_list,
-                                                                                                logger,
-                                                                                                cfg,
-                                                                                                newer_imgs,
-                                                                                                first_colmap_loop,
-                                                                                                lock,
-                                                                                                SEQUENTIAL_OVERLAP,
-                                                                                                adjacency_matrix,
-                                                                                                keypoints,
-                                                                                                descriptors,
-                                                                                                laf,
-                                                                                                init,
-                                                                                                SNAPSHOT_DIR,
-                                                                                                processed_imgs,
-                                                                                                keyframes_dict,
-                                                                                                ))
-        update_process.start()
-        print_process.start()
-        update_process.join()
-        print_process.join()
+        ### RUN IN PARALLEL KEYFRAME SELECTION AND MAPPING
+        multiprocessing.freeze_support()
 
-        logger.info('END')
+        # Register classes for variables to be shared between processes
+        CustomManager.register('KeyFrameList', KeyFrameList)
+
+        with CustomManager() as Cmanager, multiprocessing.Manager() as manager:
+            keyframes_dict = manager.dict()
+            keyframes_list = Cmanager.KeyFrameList()
+            newer_imgs = manager.Value('b', False)
+            exit_bool = manager.Value('b', False)
+            lock = manager.Lock()
+            processed_imgs = manager.list()
+            kfrm_process = multiprocessing.Process(
+                                                    target=KFrameSelProcess.KFrameSelProcess,
+                                                    args=(
+                                                        cfg,
+                                                        keyframes_list,
+                                                        pointer,
+                                                        delta,
+                                                        SNAPSHOT_DIR,
+                                                        processed_imgs,
+                                                        logger,
+                                                        kfm_batch,
+                                                        newer_imgs,
+                                                        lock,
+                                                        keyframes_dict,
+                                                        exit_bool,
+                                                        ))
+            mapping_process = multiprocessing.Process(target=MappingProcess.MappingProcess, args=(
+                                                                                                    keyframes_list,
+                                                                                                    logger,
+                                                                                                    cfg,
+                                                                                                    newer_imgs,
+                                                                                                    first_colmap_loop,
+                                                                                                    lock,
+                                                                                                    SEQUENTIAL_OVERLAP,
+                                                                                                    adjacency_matrix,
+                                                                                                    keypoints,
+                                                                                                    descriptors,
+                                                                                                    laf,
+                                                                                                    init,
+                                                                                                    SNAPSHOT_DIR,
+                                                                                                    processed_imgs,
+                                                                                                    keyframes_dict,
+                                                                                                    exit_bool,
+                                                                                                    ))
+            kfrm_process.start()
+            mapping_process.start()
+            #kfrm_process.join()
+            mapping_process.join()
+
+            logger.info('END')
