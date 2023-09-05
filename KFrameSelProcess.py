@@ -24,7 +24,7 @@ class NewFileHandler(FileSystemEventHandler):
         self.imgs = imgs
         self.pointer = pointer
         self.delta = delta
-        print('len(self.imgs)', len(self.imgs))
+        #print('len(self.imgs)', len(self.imgs))
         self.keyframe_selector = keyframe_selector
         self.screen = screen
         self.logger = logger
@@ -44,40 +44,20 @@ class NewFileHandler(FileSystemEventHandler):
     def on_created(self, event):
         if event.is_directory:
             return
-        print("New file created:", event.src_path)
+        #print("New file created:", event.src_path)
 
-        self.imgs.append(Path(event.src_path))
-        self.imgs.sort()
-        #imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
-        self.logger.info(f'len {len(self.imgs)}')
         with self.lock:
+            self.imgs.append(Path(event.src_path))
+            self.imgs.sort()
+            #imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
+            #self.logger.info(f'len {len(self.imgs)}')
+            #with self.lock:
+            #    self.newer_imgs.value = False  # To control that new keyframes are added
             self.newer_imgs.value = False  # To control that new keyframes are added
-        processed = 0  # Number of processed images
-        if len(self.imgs) < 1:
-            pass
-        if len(self.imgs) < 2:
-            # Set first frame as keyframe
-            img0 = self.imgs[self.pointer]
-            existing_keyframe_number = 0
-            for c in range(self.cfg.N_CAMERAS):
-                shutil.copy(
-                    img0.parent.parent / f"cam{c}" / img0.name,
-                    self.cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
-                )
-            camera_id = 1
-            if img0 not in keyframes_list.keyframes_names:
-                keyframes_list.add_keyframe(
-                    KeyFrame(
-                        img0,
-                        existing_keyframe_number,
-                        utils.Id2name(existing_keyframe_number),
-                        camera_id,
-                        self.pointer + delta + 1,
-                    )
-                )
-                return
-        elif len(self.imgs) >= 2:
-            if len(self.keyframe_selector.keyframes_list.keyframes()) == 0:
+            processed = 0  # Number of processed images
+            if len(self.imgs) < 1:
+                pass
+            if len(self.imgs) < 2:
                 # Set first frame as keyframe
                 img0 = self.imgs[self.pointer]
                 existing_keyframe_number = 0
@@ -87,68 +67,90 @@ class NewFileHandler(FileSystemEventHandler):
                         self.cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
                     )
                 camera_id = 1
-                #if img0 not in self.keyframe_selector.keyframes_list.keyframes_names:
-                self.keyframe_selector.keyframes_list.add_keyframe(
-                    KeyFrame(
-                        img0,
-                        existing_keyframe_number,
-                        utils.Id2name(existing_keyframe_number),
-                        camera_id,
-                        self.pointer + self.delta + 1,
+                if img0 not in keyframes_list.keyframes_names:
+                    keyframes_list.add_keyframe(
+                        KeyFrame(
+                            img0,
+                            existing_keyframe_number,
+                            utils.Id2name(existing_keyframe_number),
+                            camera_id,
+                            self.pointer + delta + 1,
+                        )
                     )
-                )
-                print('start loop')
-                ##################################################### HERE THE PROBLEM!!!!
-            
-            # Accumula ritardo quando si sta fermi
-            for c, img in enumerate(self.imgs[self.pointer:]):
-                # Decide if new images are valid to be added to the sequential matching
-                # Only new images found in the target folder are processed.
-                # No more than MAX_IMG_BATCH_SIZE imgs are processed.
-                ### print('here')
-                if img not in  self.processed_imgs and c == 0:
+                    return
+            elif len(self.imgs) >= 2:
+                if len(self.keyframe_selector.keyframes_list.keyframes()) == 0:
+                    # Set first frame as keyframe
+                    img0 = self.imgs[self.pointer]
+                    existing_keyframe_number = 0
+                    for c in range(self.cfg.N_CAMERAS):
+                        shutil.copy(
+                            img0.parent.parent / f"cam{c}" / img0.name,
+                            self.cfg.KF_DIR_BATCH / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+                        )
+                    camera_id = 1
+                    #if img0 not in self.keyframe_selector.keyframes_list.keyframes_names:
+                    self.keyframe_selector.keyframes_list.add_keyframe(
+                        KeyFrame(
+                            img0,
+                            existing_keyframe_number,
+                            utils.Id2name(existing_keyframe_number),
+                            camera_id,
+                            self.pointer + self.delta + 1,
+                        )
+                    )
+                    #print('start loop')
+                    ##################################################### HERE THE PROBLEM!!!!
+
+                # Accumula ritardo quando si sta fermi
+                for c, img in enumerate(self.imgs[self.pointer:]):
+                    # Decide if new images are valid to be added to the sequential matching
+                    # Only new images found in the target folder are processed.
+                    # No more than MAX_IMG_BATCH_SIZE imgs are processed.
+                    ### print('here')
+                    if img not in  self.processed_imgs and c == 0:
+                        self.processed_imgs.append(img)
+                        processed += 1
+                        continue
+                    if img in self.processed_imgs or processed >= self.cfg.MAX_IMG_BATCH_SIZE:
+                        continue
+                    
+
+                    img1 = self.imgs[self.pointer]
+                    img2 = img
+                    #self.logger.info(f"\nProcessing image pair ({img1}, {img2})")
+                    #self.logger.info(f"pointer {self.pointer} c {c}")
+                    old_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
+                    (
+                        keyframes_list,
+                        self.pointer,
+                        self.delta,
+                        kfs_time,
+                        conc
+                    ) = self.keyframe_selector.run(img1, img2)
+
+                    # Set if new keyframes are added
+                    new_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
+                    if new_n_keyframes - old_n_keyframes > 0:
+                        #with self.lock:
+                        #    self.newer_imgs.value = True ##############################################  NOT USED ANYMORE!!!!
+                        self.kfm_batch.append(img.name)
+                        #keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
+                        #with open('keyframes.txt', 'a') as kfm_imgs:
+                        #    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
                     self.processed_imgs.append(img)
                     processed += 1
-                    continue
-                if img in self.processed_imgs or processed >= self.cfg.MAX_IMG_BATCH_SIZE:
-                    continue
-                
 
-                img1 = self.imgs[self.pointer]
-                img2 = img
-                self.logger.info(f"\nProcessing image pair ({img1}, {img2})")
-                self.logger.info(f"pointer {self.pointer} c {c}")
-                old_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
-                (
-                    keyframes_list,
-                    self.pointer,
-                    self.delta,
-                    kfs_time,
-                    conc
-                ) = self.keyframe_selector.run(img1, img2)
+                    #cv2.setWindowTitle("Keyframe Selection", 'ciao')
+                    #cv2.imshow("Keyframe Selection", conc)
+                    #if cv2.waitKey(1) == ord("q"):
+                    #    sys.exit()
 
-                # Set if new keyframes are added
-                new_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
-                if new_n_keyframes - old_n_keyframes > 0:
-                    with self.lock:
-                        self.newer_imgs.value = True
-                    self.kfm_batch.append(img.name)
-                    #keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
-                    #with open('keyframes.txt', 'a') as kfm_imgs:
-                    #    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
-                self.processed_imgs.append(img)
-                processed += 1
+                    self.screen = []
+                    self.screen.append(conc)
+                    new_images.append(conc)
 
-                #cv2.setWindowTitle("Keyframe Selection", 'ciao')
-                #cv2.imshow("Keyframe Selection", conc)
-                #if cv2.waitKey(1) == ord("q"):
-                #    sys.exit()
-
-                self.screen = []
-                self.screen.append(conc)
-                new_images.append(conc)
-
-                logging.info(f'TIME FRAMES KFR SEL = {c*0.2}')
+                    #logging.info(f'TIME FRAMES KFR SEL = {c*0.2}')
 
 
 def KFrameSelProcess(

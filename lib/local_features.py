@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 from typing import List, Tuple, Union
 
@@ -280,10 +281,13 @@ class LocalFeatureExtractor:
         cameras.CreateCameras(cam_calib, database)
 
 
-    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
-        
+    def run(self, database, keyframes_list, all_frames_dir, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
+
+        kfm_batch = []
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
+
+        kfrm_objs = keyframes_list.keyframes()
 
         existing_images = dict(
             (image_id, name)
@@ -291,10 +295,24 @@ class LocalFeatureExtractor:
         )
 
         for cam in cams:
-            imgs = os.listdir(keyframe_dir / cam)
+            #imgs = os.listdir(keyframe_dir / cam)
+            imgs = [kf.keyframe_name() for kf in kfrm_objs]
+            print()
+            print()
+            print(imgs)
             for img in imgs:
+                #img = Path(cam) / Path(img)
                 img = Path(cam) / Path(img)
                 if str(img.parent) + "/" + str(img.name) not in existing_images.values():
+                    kfm = keyframes_list.get_keyframe_by_name(img.name) 
+                    if cam == "cam0":
+                        kfm_batch.append(kfm.image_name().name)
+                        
+                    shutil.copy(
+                        Path(f"./imgs/{cam}") / kfm.image_name().name,
+                        keyframe_dir / img,
+                    )
+
                     if self.local_feature == "SuperGlue" or self.local_feature == "LoFTR":
                         img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
                         db.commit()
@@ -336,4 +354,4 @@ class LocalFeatureExtractor:
 
         db.close()
 
-        return kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id
+        return kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id, kfm_batch

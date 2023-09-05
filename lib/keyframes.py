@@ -1,6 +1,7 @@
 import numpy as np
 from typing import List, Union
 from pathlib import Path
+import time
 
 # Example
 # keyframe._image_name imgs\cam0\1403636871851666432.jpg
@@ -38,6 +39,13 @@ class KeyFrame:
         #self.slave_cameras = {}
         self.slave_cameras_POS = {}
 
+        self.time_last_modification = time.time()
+    
+    def bug(self, x, y, z):
+        self.slamX = x
+        self.slamY = y
+        self.slamZ = z
+
     def image_name(self):
         return self._image_name
 
@@ -60,10 +68,10 @@ class KeyFrame:
         self._oriented = True
 
     def __repr__(self) -> str:
-        return f"KeyFrame {self.keyframe_id} {self._keyframe_name}."
+        return f"KeyFrame {self.keyframe_id()} {self._keyframe_name}."
 
     def __eq__(self, o: object) -> bool:
-        return self.keyframe_id == o.keyframe_id
+        return self.keyframe_id() == o.keyframe_id
 
 
 class KeyFrameList:
@@ -94,39 +102,40 @@ class KeyFrameList:
         return self._keyframes
 
     def keyframes_names(self):
-        return [kf.image_name for kf in self._keyframes]
+        return [kf.image_name() for kf in self._keyframes]
 
     def keyframes_ids(self):
-        return [kf.keyframe_id for kf in self._keyframes]
+        return [kf.keyframe_id() for kf in self._keyframes]
 
     def add_keyframe(self, keyframe: KeyFrame) -> None:
         self._keyframes.append(keyframe)
 
     def get_keyframe_by_image_name(self, image_name: str) -> KeyFrame:
         for keyframe in self._keyframes:
-            if keyframe.image_name == image_name:
+            if keyframe.image_name() == image_name:
                 return keyframe
         return None
 
     def get_keyframe_by_image_id(self, image_id: int) -> KeyFrame:
         for keyframe in self._keyframes:
-            if keyframe.image_id == image_id:
+            if keyframe.image_id() == image_id:
                 return keyframe
         return None
 
     def get_keyframe_by_name(self, keyframe_name: str) -> KeyFrame:
+        n = 0
         for keyframe in self._keyframes:
-            if keyframe.keyframe_name == keyframe_name:
+            if keyframe.keyframe_name() == keyframe_name:
+                n += 1
+
+        for keyframe in self._keyframes:
+            if keyframe.keyframe_name() == keyframe_name:
+                print('returned with n equal to', n)
                 return keyframe
         return None
 
     def get_keyframe_by_id(self, keyframe_id: int) -> KeyFrame:
-        #print('keyframe_id', keyframe_id)
-        #print('len(self._keyframes)', len(self._keyframes))
-        #print('ciao')
         for keyframe in self._keyframes:
-            #print('cio')
-            #print('keyframe.keyframe_id()', keyframe.keyframe_id())
             if keyframe.keyframe_id() == keyframe_id:
                 return keyframe
         return None
@@ -134,6 +143,20 @@ class KeyFrameList:
     def set_keyframe_as_oriented(self, keyframe_id: int) -> None:
         keyframe = self.get_keyframe_by_id(keyframe_id)
         keyframe.oriented = True
+
+    def debug(self):
+        for keyframe in self.keyframes():
+            print(f'''
+        {keyframe._image_name}
+        {keyframe._image_id}
+        {keyframe._keyframe_id}
+        {keyframe._keyframe_name}
+        {keyframe._camera_id}
+        {keyframe.slamX}
+        {keyframe.slamY}
+        {keyframe.slamZ}
+        {keyframe.time_last_modification}
+''')
 
 
 if __name__ == "__main__":

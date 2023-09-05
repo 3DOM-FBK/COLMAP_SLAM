@@ -94,9 +94,16 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 - [ ] Join IMU aiding
 - [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
 - [ ] Example testing
+- [ ] Add script for multiple webcams
 
 For performance optimization:
+- [ ] pycolmap (faster?)
+- [ ] during keyframe selection visualize also frame position
+- [x] Separate in 2 different process keyframe selection and mapping
+- [ ] Extract features and matching in parallel
+- [ ] Keep map of only the last 6 images
 - [ ] Do not save txt reconstruction (only binary)
+- [ ] Save keypoints extracted during keyframe selection
 
 ### Reference
 

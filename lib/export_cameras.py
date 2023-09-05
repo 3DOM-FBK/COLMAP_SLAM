@@ -36,7 +36,7 @@ def ExportCameras(external_cameras_path, keyframes_list):
                 lines.append(
                     "{} {} {} {} {} {} {} {} 50 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
                         name,
-                        "imgs/" + cam_number + "/" + str(keyframe_obj.image_name.name),
+                        "imgs/" + cam_number + "/" + str(keyframe_obj.image_name().name),
                         camera_location[0, 0],
                         camera_location[1, 0],
                         camera_location[2, 0],

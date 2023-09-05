@@ -1,33 +1,3 @@
-#import os
-#import time
-#import multiprocessing
-#
-## Function to update the file list
-#def update_file_list(folder_path, file_lists):
-#    while True:
-#        files = os.listdir(folder_path)
-#        file_lists.append(files)
-#        time.sleep(5)
-#
-## Function to print the length of the file list
-#def print_list_length(file_lists):
-#    while True:
-#        print("File list length:", len(file_lists[-1]))
-#        time.sleep(1)
-#
-#if __name__ == "__main__":
-#    folder_path = "./imgs/cam0"
-#    file_lists = multiprocessing.Manager().list()
-#
-#    update_process = multiprocessing.Process(target=update_file_list, args=(folder_path, file_lists))
-#    print_process = multiprocessing.Process(target=print_list_length, args=(file_lists,))
-#
-#    update_process.start()
-#    print_process.start()
-#
-#    update_process.join()
-#    print_process.join()
-
 import os
 import cv2
 import time
@@ -43,12 +13,11 @@ import numpy as np
 from pyquaternion import Quaternion
 from lib.colmapAPI import ColmapAPI
 from lib.keyframe_selection import KeyFrameSelConfFile, KeyFrameSelector
-from lib.keyframes import KeyFrame, KeyFrameList
 from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
 from lib import cameras
 from pathlib import Path
 from multiprocessing.managers import BaseManager
-
+from typing import List, Union
 from lib import (
     ExtractCustomFeatures,
     database,
@@ -59,11 +28,135 @@ from lib import (
     utils,
 )
 
-import KFrameSelProcess, MappingProcess
 
 
 
-        
+class KeyFrameList:
+    def __init__(self):
+        self._keyframes = []
+        self._current_idx = 0
+
+    def __len__(self):
+        return len(self._keyframes)
+
+    def __getitem__(self, keyframe_id):
+        return self._keyframes[keyframe_id]
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._current_idx >= len(self._keyframes):
+            raise StopIteration
+        cur = self._current_idx
+        self._current_idx += 1
+        return self._keyframes[cur]
+
+    def keyframes(self):
+        return self._keyframes
+
+    def add_keyframe(self, keyframe) -> None:
+        self._keyframes.append(keyframe)
+
+    def get_keyframe_by_name(self, keyframe_name: str):
+        for keyframe in self._keyframes:
+            if keyframe._keyframe_name == keyframe_name:
+                return keyframe
+        return None
+
+class KeyFrame:
+    def __init__(self, image_name : Union[str, Path], keyframe_id, keyframe_name, camera_id, image_id, manager2):
+        self._image_name = image_name
+        self._image_id = image_id
+        self._keyframe_id = keyframe_id
+        self._keyframe_name = keyframe_name
+        self._camera_id = camera_id
+        self._oriented = False
+        self.n_keypoints = 0
+        self.GPSLatitude = "-"
+        self.GPSLongitude = "-"
+        self.GPSAltitude = "-"
+        self.enuX = "-"
+        self.enuY = manager2.Value('b', 0)
+        self.enuZ = "-"
+        self.slamX = "-"
+        self.slamY = "-"
+        self.slamZ = "-"
+        self.slave_cameras_POS = {}
+        self.time_last_modification = time.time()
+
+
+
+def KFrameSelProcess(
+        cfg,
+        keyframes_list, 
+        pointer,
+        delta,
+        SNAPSHOT_DIR,
+        processed_imgs,
+        logger,
+        kfm_batch,
+        newer_imgs,
+        lock,
+        shared_list,
+        manager2,
+        ):
+
+    for i in range(5):
+        time.sleep(0.25)
+        #with lock:
+        #    keyframes_list.add_keyframe(keyframes_list.KeyFrame(i,i,i,i,i))
+        #    c = keyframes_list.get_keyframe_by_name(i)
+        #    print('KFrameSelProcess: added keyframe', 'c', i, id(c))
+        #    
+        #    #newer_imgs.value = False
+        with lock:
+            shared_list.append(
+                KeyFrame(i,i,i,i,i, manager2)
+            )
+            for obj in shared_list:
+                print('obj.slamY', obj.slamY)
+
+
+def MappingProcess(
+        keyframes_list, 
+        logger, 
+        cfg, 
+        newer_imgs, 
+        first_colmap_loop, 
+        lock, SEQUENTIAL_OVERLAP, 
+        adjacency_matrix, 
+        keypoints, 
+        descriptors, 
+        laf, 
+        init, 
+        SNAPSHOT_DIR, 
+        processed_imgs, 
+        shared_list,
+        manager2,
+        ):
+    
+    for i in range(5):
+        time.sleep(1)
+        with lock:
+            shared_list[0].slamY = 9
+        ##with lock:
+        #    #o = keyframes_list.get_keyframe_by_name(0)
+        #    o = keyframes_list.keyframes()[0]
+        #    print(len(keyframes_list.keyframes()))
+        #    print('MappingProcess', 'o', i, id(o))
+        #    #o.slamY = 7
+        #    #newer_imgs.value = True
+        #    
+        ##with lock:
+        #    time.sleep(5)
+        #    o = keyframes_list.keyframes()[0]
+        #    print(len(keyframes_list.keyframes()))
+        #    #o = keyframes_list.get_keyframe_by_name(0)
+        #    print('MappingProcess', 'o', i, id(o))
+        #    #print('o', i, id(o))
+        #    #print(f'Mapping: slamY {o.slamY}')
+        #    #print(newer_imgs.value)
 
 class CustomManager(BaseManager):
     # nothing
@@ -98,8 +191,6 @@ if __name__ == '__main__':
     delta = 0  # delta is equal to the number of processed but not oriented imgs
     first_colmap_loop = True
     one_time = False  # It becomes true after the first batch of images is oriented
-    # The first batch of images define the reference system.
-    # At following epochs the photogrammetric model will be reported in this ref system.
     reference_imgs = []
     adjacency_matrix = None
     keypoints, descriptors, laf = {}, {}, {}
@@ -114,18 +205,21 @@ if __name__ == '__main__':
 
 
     ### RUN IN PARALLEL KEYFRAME SELECTION AND MAPPING
-    multiprocessing.freeze_support()
+    #multiprocessing.freeze_support()
 
     # Register classes for variables to be shared between processes
+    #CustomManager.register('KeyFrame', KeyFrame)
     CustomManager.register('KeyFrameList', KeyFrameList)
 
     with CustomManager() as manager:
+        manager2 = multiprocessing.Manager()
+        shared_list = manager2.list()
         keyframes_list = manager.KeyFrameList()
-        newer_imgs = multiprocessing.Manager().Value('b', False)
-        lock = multiprocessing.Manager().Lock()
-        processed_imgs = multiprocessing.Manager().list()
+        newer_imgs = manager2.Value('b', False)
+        lock = manager2.Lock()
+        processed_imgs =manager2.list()
         update_process = multiprocessing.Process(
-                                                target=KFrameSelProcess.KFrameSelProcess,
+                                                target=KFrameSelProcess,
                                                 args=(
                                                     cfg,
                                                     keyframes_list,
@@ -137,8 +231,10 @@ if __name__ == '__main__':
                                                     kfm_batch,
                                                     newer_imgs,
                                                     lock,
+                                                    shared_list,
+                                                    manager2,
                                                     ))
-        print_process = multiprocessing.Process(target=MappingProcess.MappingProcess, args=(
+        print_process = multiprocessing.Process(target=MappingProcess, args=(
                                                                                                 keyframes_list,
                                                                                                 logger,
                                                                                                 cfg,
@@ -153,10 +249,14 @@ if __name__ == '__main__':
                                                                                                 init,
                                                                                                 SNAPSHOT_DIR,
                                                                                                 processed_imgs,
+                                                                                                shared_list,
+                                                                                                manager2,
                                                                                                 ))
+        
         update_process.start()
-        print_process.start()
+        #print_process.start()
+        
         update_process.join()
-        print_process.join()
+        #print_process.join()
 
         logger.info('END')

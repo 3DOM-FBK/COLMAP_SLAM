@@ -226,7 +226,7 @@ class KeyFrameSelector:
                     symmetric_error_check=True,
                     enable_degeneracy_check=True,
                 )
-                logger.info(f"Pydegensac found {mask.sum()}/{len(mask)} inliers")
+                #logger.info(f"Pydegensac found {mask.sum()}/{len(mask)} inliers")
             except:
                 return False
         
@@ -248,7 +248,7 @@ class KeyFrameSelector:
                 self.mpts1[max_consensus] - self.mpts2[max_consensus]
             )
             mask = np.absolute(match_dist - reference_distance) > self.error_threshold
-            logger.info(f"Ransac found {mask.sum()}/{len(mask)} inliers")
+            #logger.info(f"Ransac found {mask.sum()}/{len(mask)} inliers")
 
         else:
             # Here we can implement other methods
@@ -266,10 +266,10 @@ class KeyFrameSelector:
     def innovation_check(self) -> bool:
         match_dist = np.linalg.norm(self.mpts1 - self.mpts2, axis=1)
         self.median_match_dist = np.median(match_dist)
-        logger.info(f"median_match_dist: {self.median_match_dist:.2f}")
+        #logger.info(f"median_match_dist: {self.median_match_dist:.2f}")
 
         if len(self.mpts1) < self.min_matches:
-            logger.info("Frame rejected: not enogh matches")
+            #logger.info("Frame rejected: not enogh matches")
             self.delta += 1
             if self.timer is not None:
                 self.timer.update("innovation check")
@@ -277,17 +277,16 @@ class KeyFrameSelector:
             return False
         
         if self.median_match_dist > self.innovation_threshold_pix:
-            #existing_keyframe_number = len(os.listdir(self.keyframes_dir))
             existing_keyframe_number = len(self.keyframes_list.keyframes())
             for c in range(self.n_camera):
                 current_img = self.img2.name
                 imgs_folder = self.img2.parent.parent
-                print(imgs_folder / f"cam{c}" / current_img)
-                print(self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}")
-                shutil.copy(
-                    imgs_folder / f"cam{c}" / current_img,
-                    self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
-                )
+                #print(imgs_folder / f"cam{c}" / current_img)
+                #print(self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}")
+                #shutil.copy(
+                #    imgs_folder / f"cam{c}" / current_img,
+                #    self.keyframes_dir.parent / f"cam{c}" / f"{utils.Id2name(existing_keyframe_number)}",
+                #)
             camera_id = 1
 
             new_keyframe = KeyFrame(
@@ -471,7 +470,7 @@ if __name__ == "__main__":
     )
 
     for i, cur_frame in enumerate(img_list[1:]):
-        print(f"Processing {i} of {len(img_list) - 1}")
+        #print(f"Processing {i} of {len(img_list) - 1}")
 
         last_keyframe = img_list[pointer]
         (
@@ -481,4 +480,4 @@ if __name__ == "__main__":
             dt,
         ) = keyframe_selector.run(last_keyframe, cur_frame)
 
-    print("Done")
+    #print("Done")
