@@ -156,7 +156,7 @@ def MappingProcess(
             logger.info("Feature extraction")
             print("Feature extraction")
             if cfg.LOCAL_FEAT_LOCAL_FEATURE != "RootSIFT":
-                keypoints, descriptors, laf, kfm_batch = local_feat_extractor.run(cfg.DATABASE, keyframes_list, cfg.IMGS_FROM_SERVER, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf)
+                keypoints, descriptors, laf, kfm_batch = local_feat_extractor.run(cfg.DATABASE, keyframes_dict, kfrms, cfg.IMGS_FROM_SERVER, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf)
             # Aggiungere LAF per RootSIFT
             elif cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
                 colmap.ExtractRootSiftFeatures(
@@ -218,8 +218,18 @@ def MappingProcess(
                 # Matching cam0 at different epochs
                 for l, m in zip(true_indices[0], true_indices[1]):
                     if l > m and l > old_adjacency_matrix_shape - 1:
-                        kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
-                        kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
+                        kfm1_name = utils.Id2name(m)
+                        kfm2_name = utils.Id2name(l)
+                        print(kfm1_name, kfm2_name)
+
+                print('ok')
+                print()
+                # Matching cam0 at different epochs
+                for l, m in zip(true_indices[0], true_indices[1]):
+                    if l > m and l > old_adjacency_matrix_shape - 1:
+                        kfm1_name = utils.Id2name(m)
+                        kfm2_name = utils.Id2name(l)
+                        #print(kfm1_name, kfm2_name)
                         #kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
                         #kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
                         i = inverted_dict[f"cam0/{kfm2_name}"]

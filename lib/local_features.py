@@ -281,13 +281,13 @@ class LocalFeatureExtractor:
         cameras.CreateCameras(cam_calib, database)
 
 
-    def run(self, database, keyframes_list, all_frames_dir, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
+    def run(self, database, keyframes_dict, kfrms, all_frames_dir, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
 
         kfm_batch = []
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
 
-        kfrm_objs = keyframes_list.keyframes()
+        #kfrm_objs = keyframes_list.keyframes()
 
         existing_images = dict(
             (image_id, name)
@@ -296,20 +296,24 @@ class LocalFeatureExtractor:
 
         for cam in cams:
             #imgs = os.listdir(keyframe_dir / cam)
-            imgs = [kf.keyframe_name() for kf in kfrm_objs]
+            #imgs = [kf.keyframe_name() for kf in kfrm_objs]
+            imgs = kfrms
             print()
             print()
             print(imgs)
             for img in imgs:
-                #img = Path(cam) / Path(img)
                 img = Path(cam) / Path(img)
                 if str(img.parent) + "/" + str(img.name) not in existing_images.values():
-                    kfm = keyframes_list.get_keyframe_by_name(img.name) 
+                    #kfm = keyframes_list.get_keyframe_by_name(img.name) 
                     if cam == "cam0":
-                        kfm_batch.append(kfm.image_name().name)
+                        #kfm_batch.append(kfm.image_name().name)
+                        #id, ext = img.name.split('.', 1)
+                        #image_name = Path(keyframes_dict[int(id)]['image_name']).name
+                        image_name = Path(keyframes_dict[img.name]['image_name']).name
+                        kfm_batch.append(image_name)
                         
                     shutil.copy(
-                        Path(f"./imgs/{cam}") / kfm.image_name().name,
+                        Path(f"./imgs/{cam}") / image_name,
                         keyframe_dir / img,
                     )
 

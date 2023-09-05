@@ -231,7 +231,7 @@ def LoFTR(keyframe_dir : List[Path],
 
 def UpdateAdjacencyMatrix(adjacency_matrix : np.ndarray[bool], kfm_batch : list, overlap : int, first_loop: bool, n_cameras: int) -> np.ndarray[bool]:
     if first_loop == True:
-        matrix_dim = int(len(kfm_batch)/n_cameras)
+        matrix_dim = int(len(kfm_batch)/n_cameras)      
         adjacency_matrix = np.full((matrix_dim, matrix_dim), False, dtype=bool)
 
         # Define matches
@@ -244,7 +244,7 @@ def UpdateAdjacencyMatrix(adjacency_matrix : np.ndarray[bool], kfm_batch : list,
     
     else:
         old_matrix_shape = adjacency_matrix.shape
-        new_matrix_shape = (len(kfm_batch), len(kfm_batch))
+        new_matrix_shape = (int(len(kfm_batch)/n_cameras), int(len(kfm_batch)/n_cameras))
         row_pad = new_matrix_shape[0] - old_matrix_shape[0]
         col_pad = new_matrix_shape[1] - old_matrix_shape[1]
 
