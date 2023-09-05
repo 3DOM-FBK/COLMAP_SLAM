@@ -2,7 +2,7 @@ import numpy as np
 from pyquaternion import quaternion
 
 
-def ExportCameras(external_cameras_path, keyframes_list):
+def ExportCameras(external_cameras_path, keyframes_dict):
     lines = []
     lines.append("IMAGE_ID X Y Z NX NY NZ FOCAL_LENGTH EULER_ROTATION_MATRIX\n")
     camera_dict = {}
@@ -22,8 +22,7 @@ def ExportCameras(external_cameras_path, keyframes_list):
                 )
 
                 cam_number, keyframe = name.split("/", 1)
-                keyframe_obj = keyframes_list.get_keyframe_by_name(keyframe)
-                # keyframe_obj = list(filter(lambda obj: obj.keyframe_name == name, keyframes_list))[0]
+
                 
                 q = np.array([float(qw), float(qx), float(qy), float(qz)])
                 t = np.array([[float(tx)], [float(ty)], [float(tz)]])
@@ -36,7 +35,7 @@ def ExportCameras(external_cameras_path, keyframes_list):
                 lines.append(
                     "{} {} {} {} {} {} {} {} 50 {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}\n".format(
                         name,
-                        "imgs/" + cam_number + "/" + str(keyframe_obj.image_name().name),
+                        "imgs/" + cam_number + "/" + str(keyframes_dict[keyframe]['image_name']),
                         camera_location[0, 0],
                         camera_location[1, 0],
                         camera_location[2, 0],

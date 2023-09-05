@@ -198,8 +198,9 @@ class NewFileHandler(FileSystemEventHandler):
                     #if cv2.waitKey(1) == ord("q"):
                     #    sys.exit()
 
-                    self.screen = []
-                    self.screen.append(conc)
+                    #self.screen = []
+                    #self.screen.append(conc)
+
                     new_images.append(conc)
 
                     #logging.info(f'TIME FRAMES KFR SEL = {c*0.2}')
@@ -261,13 +262,11 @@ def KFrameSelProcess(
     try:
 
         while True:
-            #time.sleep(1)
+            time.sleep(cfg.KFRM_SEL_SLEEP_TIME)
             cv2.setWindowTitle("Keyframe Selection", 'ciao')
             cv2.imshow("Keyframe Selection", new_images[-1])
             if cv2.waitKey(1) == ord("q"):
                 sys.exit()
-            #print('len(imgs)', len(imgs))
-            #print(imgs)
 
             with lock:
                 if exit_bool == True:

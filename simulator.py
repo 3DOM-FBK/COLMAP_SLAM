@@ -5,12 +5,12 @@ import shutil
 import sys
 import time
 from pathlib import Path
-
+import cv2
 from PIL import Image, ImageOps
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 0
+SKIP = 1000
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
@@ -35,10 +35,18 @@ def run_simulator(
         for c in reversed(range(n_camera)):
             im_name = imgs[i].name
             im = Image.open(input_dir / f"cam{c}/data" / im_name)
+            im_cv2 = cv2.imread(str(input_dir / f"cam{c}/data" / im_name))
             rgb_im = im.convert("RGB")
             if equalize == True:
                 rgb_im = ImageOps.equalize(rgb_im)
             rgb_im.save(Path(output_dir) / f"cam{c}" / f"{Path(im_name).stem}.{ext}")
+
+            if c==0:
+                cv2.setWindowTitle("ciao2", 'ciao2')
+                cv2.imshow("ciao2", im_cv2)
+                if cv2.waitKey(1) == ord("q"):
+                    sys.exit()
+
             time.sleep(sleep)
 
             #processed += 1

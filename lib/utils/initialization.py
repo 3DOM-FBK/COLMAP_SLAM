@@ -72,7 +72,8 @@ class Inizialization:
         cfg.DEBUG = config["DEFAULT"].getboolean("DEBUG")
         cfg.MAX_IMG_BATCH_SIZE = int(config["DEFAULT"]["MAX_IMG_BATCH_SIZE"])
         cfg.SIMULATOR_SLEEP_TIME = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
-        cfg.SLEEP_TIME = float(config["DEFAULT"]["SLEEP_TIME"])
+        cfg.MAPPING_SLEEP_TIME = float(config["DEFAULT"]["MAPPING_SLEEP_TIME"])
+        cfg.KFRM_SEL_SLEEP_TIME = float(config["DEFAULT"]["KFRM_SEL_SLEEP_TIME"])
         cfg.LOOP_CYCLES = int(config["DEFAULT"]["LOOP_CYCLES"])
         cfg.COLMAP_EXE_DIR = Path(config["DEFAULT"]["COLMAP_EXE_DIR"])
         cfg.IMGS_FROM_SERVER = Path(

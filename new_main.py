@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
         print('INITIALIZATION')
         for item in processed_imgs:
-            print(item)
+            print('aiuto provaaaaaaaaaaaaaaaaaaa', item)
 
         ### INITIALIZATION
         CFG_FILE = "config.ini"

@@ -298,9 +298,6 @@ class LocalFeatureExtractor:
             #imgs = os.listdir(keyframe_dir / cam)
             #imgs = [kf.keyframe_name() for kf in kfrm_objs]
             imgs = kfrms
-            print()
-            print()
-            print(imgs)
             for img in imgs:
                 img = Path(cam) / Path(img)
                 if str(img.parent) + "/" + str(img.name) not in existing_images.values():
