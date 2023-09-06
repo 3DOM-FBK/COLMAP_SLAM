@@ -1,6 +1,8 @@
+### See line 68, starts from there
 ### Reintroduce timer
 ### Reintroduce logger
 ### Check loops, they should not be too much demanding 
+### Add choice slam vs visual-odometry (only on 6 images)
 
 import os
 import cv2
@@ -65,10 +67,11 @@ def MappingProcess(
 
     while True:
         time.sleep(cfg.MAPPING_SLEEP_TIME)
-
+        # Maybe here a problem, you can see after some minutes
+        print('acquiring keyframes')
         with lock:
             kfrms = keyframes_dict.keys()
-
+        print('finished acquiring images')
         if len(kfrms) < cfg.MIN_KEYFRAME_FOR_INITIALIZATION or len(kfrms) == n_keyframes:
             continue
 
@@ -364,24 +367,24 @@ def MappingProcess(
 
         time1 = time.time()
         print('time1',time1)
-        for key in oriented_dict:
-            cam, keyframe_name = key.split("/", 1)
-            qi, ti = oriented_dict[key][1]
-            ti = ti.reshape((3, 1))
-            qi_quat = Quaternion(qi)
-            ti_in_q0_ref = (
-                -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
-            )
-            with lock: 
+        with lock:
+            for key in oriented_dict:
+                cam, keyframe_name = key.split("/", 1)
+                qi, ti = oriented_dict[key][1]
+                ti = ti.reshape((3, 1))
+                qi_quat = Quaternion(qi)
+                ti_in_q0_ref = (
+                    -np.dot((q0_quat * qi_quat.inverse).rotation_matrix, ti) + t0
+                )
+                #with lock: 
                 camera = int(cam[3:])
-            
+
                 if camera == 0:
                     a = keyframes_dict[keyframe_name]
                     a['slamX'] = ti_in_q0_ref[0, 0]
                     a['slamY'] = ti_in_q0_ref[1, 0]
                     a['slamZ'] = ti_in_q0_ref[2, 0]
                     keyframes_dict[keyframe_name] = a
-
                 else:
                     a = keyframes_dict[keyframe_name]
                     a['slave_cameras_POS'][camera] = (ti_in_q0_ref[0, 0], ti_in_q0_ref[1, 0], ti_in_q0_ref[2, 0])
