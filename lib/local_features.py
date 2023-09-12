@@ -276,11 +276,11 @@ class LocalFeatureExtractor:
         self.detector_and_descriptor = LocalFeatures(
             local_feature, n_features, local_feature_cfg
         )
-
+        
         cameras.CreateCameras(cam_calib, database)
 
 
-    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id) -> None:
+    def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id, kfm_batch_frm_name) -> None:
         
         db = db_colmap.COLMAPDatabase.connect(str(database))
         cams = os.listdir(keyframe_dir)
@@ -289,12 +289,15 @@ class LocalFeatureExtractor:
             (image_id, name)
             for image_id, name in db.execute("SELECT image_id, name FROM images")
         )
+        existing_images_inverted = {value: key for key, value in existing_images.items()}
 
         for cam in cams:
             imgs = os.listdir(keyframe_dir / cam)
             for img in imgs:
                 img = Path(cam) / Path(img)
-                if str(img.parent) + "/" + str(img.name) not in existing_images.values():
+
+                #if str(img.parent) + "/" + str(img.name) not in existing_images.values():
+                if str(img.name) in kfm_batch_frm_name:
                     if self.local_feature == "SuperGlue" or self.local_feature == "LoFTR":
                         img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
                         db.commit()
@@ -303,8 +306,11 @@ class LocalFeatureExtractor:
                         kpts, descriptors, laf = extract([keyframe_dir / img])
                         kp = kpts[img.name[: -len(image_format) - 1]]
                         desc = descriptors[img.name[: -len(image_format) - 1]]
+                        try:
+                            img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
+                        except:
+                            img_id = existing_images_inverted[str(img.parent) + '/' + str(img.name)]
 
-                        img_id = db.add_image(str(img.parent) + "/" + str(img.name), 1)
                         kpts_key_colmap_id[img_id] = kp
                         descs_key_colmap_id[img_id] = desc
                         laf_key_colmap_id[img_id] = laf
@@ -329,9 +335,13 @@ class LocalFeatureExtractor:
                         zero_matrix = np.zeros((np.shape(kp)[0], 3))
                         kp = np.append(kp, zero_matrix, axis=1).astype(np.float32)
     
-                        
-                        db.add_keypoints(img_id, kp)
-                        db.add_descriptors(img_id, desc)
+                        try:
+                            db.add_keypoints(img_id, kp)
+                            db.add_descriptors(img_id, desc)
+                        except:
+                            kpts_key_colmap_id[img_id] = db.add_kpts_to_existing_kpts(img_id, kp)
+                            descs_key_colmap_id[img_id] = db.add_descs_to_existing_descs(img_id, desc)
+
                         db.commit()
 
         db.close()

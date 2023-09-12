@@ -36,14 +36,21 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, l
         #laf2 = torch.from_numpy(np.zeros((1,desc_2.shape[0],2,3)))
 
         kps1_tensor = torch.from_numpy(kps1[:,:2]).to(device='cuda')
-        if laf1.any == None and laf2.any == None:
+
+        if type(laf1) == type(None):
+            laf1 = feature.laf_from_center_scale_ori(kps1_tensor.unsqueeze(0),
+                                                 torch.ones(1, len(kps1), 1, 1,device='cuda'))
+        elif laf1.any == None and laf2.any == None:
             laf1 = feature.laf_from_center_scale_ori(kps1_tensor.unsqueeze(0),
                                                  torch.ones(1, len(kps1), 1, 1,device='cuda'))
         else:
             laf1 = torch.from_numpy(laf1)
         kps2_tensor = torch.from_numpy(kps2[:,:2]).to(device='cuda')
 
-        if laf1.any == None and laf2.any == None:
+        if type(laf2) == type(None):
+            laf2 = feature.laf_from_center_scale_ori(kps2_tensor.unsqueeze(0),
+                                                 torch.ones(1, len(kps2), 1, 1,device='cuda'))
+        elif laf1.any == None and laf2.any == None:
             laf2 = feature.laf_from_center_scale_ori(kps2_tensor.unsqueeze(0),
                                                  torch.ones(1, len(kps2), 1, 1,device='cuda'))
         else:
@@ -86,7 +93,28 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, l
 
     elif kornia_matcher =='nn' or kornia_matcher == 'snn' or kornia_matcher == 'mnn' or kornia_matcher == 'smnn':
         matcher = feature.DescriptorMatcher(match_mode=kornia_matcher, th=ratio_threshold)
-        match_distances, matches_matrix = matcher.forward(torch_desc_1, torch_desc_2)
+        #match_distances, matches_matrix1 = matcher.forward(torch_desc_1[:512,:128], torch_desc_2[:512,:128])
+        #match_distances, matches_matrix2 = matcher.forward(torch_desc_1[512:,:128], torch_desc_2[512:,:128])
+        match_distances, matches_matrix1 = matcher.forward(torch_desc_1[:750,:], torch_desc_2[:750,:])
+        match_distances, matches_matrix2 = matcher.forward(torch_desc_1[750:,:], torch_desc_2[750:,:])
+
+        #matches_matrix2 = matches_matrix2 + 512 -1
+        matches_matrix2 = matches_matrix2 + 750
+        matches_matrix = torch.cat((matches_matrix1, matches_matrix2), dim=0)
+        #matches_matrix = matches_matrix1
+        #print('torch_desc_1.shape', torch_desc_1.shape)
+        #print('torch_desc_2.shape', torch_desc_2.shape)
+#
+        #print(torch_desc_1[:512,:].shape)
+        #print(torch_desc_2[:512,:].shape)
+        #print(torch_desc_1[512:,:].shape)
+        #print(torch_desc_2[512:,:].shape)
+#
+        #print(matches_matrix1.shape)
+        #print(matches_matrix2.shape)
+        #print(matches_matrix.shape)
+        
+
     else:
         print('Insert a matcher between those available in conf.ini\n Exit')
         quit()

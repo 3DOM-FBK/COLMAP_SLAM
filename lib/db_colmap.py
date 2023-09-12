@@ -188,6 +188,47 @@ class COLMAPDatabase(sqlite3.Connection):
         self.execute(
             "INSERT INTO keypoints VALUES (?, ?, ?, ?)",
             (image_id,) + keypoints.shape + (array_to_blob(keypoints),))
+    
+    def add_kpts_to_existing_kpts(self, image_id, keypoints):
+        N_features = keypoints.shape[0]
+        #print(N_features)
+        assert(len(keypoints.shape) == 2)
+        assert(keypoints.shape[1] in [2, 4, 6])
+
+        keypoints = np.asarray(keypoints, np.float32)
+        #self.execute("DELETE FROM keypoints WHERE rows > ?", (N_features,))
+
+        existing_keypoints = dict(
+            (image_id, blob_to_array(data, np.float32, (-1, 6)))
+            for image_id, data in self.execute(
+                "SELECT image_id, data FROM keypoints"))
+        
+        all_keypoints = np.vstack((existing_keypoints[image_id][:N_features,:], keypoints))
+        self.execute(
+            "UPDATE keypoints SET rows = ?, cols = ?, data = ? WHERE image_id = ?",
+            (all_keypoints.shape[0], all_keypoints.shape[1],  array_to_blob(all_keypoints), image_id))
+        #print('all_keypoints.shape', all_keypoints.shape)
+        return all_keypoints
+
+    def add_descs_to_existing_descs(self, image_id, descriptors):
+        N_features = descriptors.shape[0]
+        #print(N_features)
+        descriptors = np.ascontiguousarray(descriptors, np.uint8)
+        #self.execute("DELETE FROM descriptors WHERE rows > ?", (N_features,))
+
+        existing_descriptors = dict(
+            (image_id, blob_to_array(data, np.uint8, (-1, 128)))
+            for image_id, data in self.execute(
+                "SELECT image_id, data FROM descriptors"))
+
+        all_descriptors = np.vstack((existing_descriptors[image_id][:N_features,:], descriptors))
+        self.execute(
+            "UPDATE descriptors SET rows = ?, cols = ?, data = ? WHERE image_id = ?",
+            (all_descriptors.shape[0], all_descriptors.shape[1],  array_to_blob(all_descriptors), image_id))
+        #print('existing_descriptors.shape', existing_descriptors[image_id].shape)
+        #print('descriptors.shape', descriptors.shape)
+        #print('all_descriptors.shape', all_descriptors.shape)
+        return all_descriptors
 
     def add_descriptors(self, image_id, descriptors):
         descriptors = np.ascontiguousarray(descriptors, np.uint8)

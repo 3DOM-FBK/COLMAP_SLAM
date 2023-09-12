@@ -62,6 +62,7 @@ elif cfg.SNAPSHOT == False:
 keyframes_list = KeyFrameList()
 processed_imgs = []
 kfm_batch = []
+kfm_batch_frm_name = []
 pointer = 0  # pointer points to the last oriented image
 delta = 0  # delta is equal to the number of processed but not oriented imgs
 first_colmap_loop = True
@@ -93,10 +94,17 @@ keyframe_selector = KeyFrameSelector(
     n_camera=cfg.N_CAMERAS,
 )
 
-# Setup local feature to use on keyframes
+# Setup local feature
 local_feat_conf = LocalFeatConfFile(cfg)
 local_feat_extractor = LocalFeatureExtractor(
     cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
+)
+
+# Superpoint
+from easydict import EasyDict as edict
+local_feat_conf2 = edict({})
+local_feat_extractor2 = LocalFeatureExtractor(
+    'SuperPoint', local_feat_conf2, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
 )
 
 # If the camera coordinates are known from other sensors than gnss,
@@ -172,6 +180,8 @@ while True:
                     pointer + delta + 1,
                 )
             )
+            kfm_batch.append(img0.name)
+            kfm_batch_frm_name.append(utils.Id2name(existing_keyframe_number))
             continue
 
     elif len(imgs) >= 2:
@@ -207,6 +217,7 @@ while True:
                 newer_imgs = True
                 kfm_batch.append(img.name)
                 keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
+                kfm_batch_frm_name.append(keyframe_obj._keyframe_name)
                 with open('keyframes.txt', 'a') as kfm_imgs:
                     kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
 
@@ -264,7 +275,16 @@ while True:
 
         logger.info("Feature extraction")
         if cfg.LOCAL_FEAT_LOCAL_FEATURE != "RootSIFT":
-            keypoints, descriptors, laf = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf)
+            #if len(keypoints.keys()) != 0:
+                #print('old')
+                #print(keypoints[1].shape, descriptors[1].shape)
+            keypoints, descriptors, laf = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
+            #print('run1')
+            #print(keypoints[1].shape, descriptors[1].shape)
+            keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
+            #print('run2')
+            #print(keypoints[1].shape, descriptors[1].shape)
+            #quit()
         # Aggiungere LAF per RootSIFT
         elif cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
             colmap.ExtractRootSiftFeatures(
@@ -305,6 +325,12 @@ while True:
                 keypoints, descriptors = kpoints, des
                 for key in keypoints:
                     laf[key] = None
+                keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
+                #print('qui', keypoints2[1].shape, descriptors2[1].shape)
+                #quit()
+                #for key in keypoints:
+                #    keypoints[key] = np.vstack((keypoints[key][:cfg.LOCAL_FEAT_N_FEATURES,:], keypoints2[key][:cfg.LOCAL_FEAT_N_FEATURES,:]))
+                #    descriptors[key] = np.vstack((descriptors[key][:cfg.LOCAL_FEAT_N_FEATURES,:128], descriptors2[key][:cfg.LOCAL_FEAT_N_FEATURES,:128]))
 
             d = new_n_keyframes - old_n_keyframes
             inverted_dict = {value: key for key, value in images.items()}
@@ -690,6 +716,7 @@ while True:
             pickle.dump(np.array(data), f)
 
         kfm_batch = []
+        kfm_batch_frm_name = []
         first_colmap_loop = False
 
         # REINITIALIZE SLAM
