@@ -78,7 +78,7 @@ class Inizialization:
         cfg.COLMAP_EXE_DIR = Path(config["DEFAULT"]["COLMAP_EXE_DIR"])
         cfg.IMGS_FROM_SERVER = Path(
             config["DEFAULT"]["IMGS_FROM_SERVER"]
-        )  # Path(r"/home/luca/Scrivania/3DOM/Github_lcmrl/Server_Connection/c++_send_images/imgs")
+        )
         cfg.STEP = config["DEFAULT"]["STEP"]
         cfg.IMG_FORMAT = config["DEFAULT"]["IMG_FORMAT"]
         cfg.INITIAL_SEQUENTIAL_OVERLAP = int(
@@ -204,7 +204,6 @@ class Inizialization:
         self.cfg.TEMP_DIR = self.cfg.CURRENT_DIR / "temp"
         self.cfg.KEYFRAMES_DIR = self.cfg.CURRENT_DIR / "colmap_imgs"
         self.cfg.OUT_FOLDER = self.cfg.CURRENT_DIR / "outs"
-        #self.cfg.DATABASE_DIR = self.cfg.CURRENT_DIR / "outs"
 
     def manage_output_folders(self) -> bool:
         """
@@ -226,6 +225,7 @@ class Inizialization:
 
         if self.cfg.IMGS_FROM_SERVER.exists():
             shutil.rmtree(self.cfg.IMGS_FROM_SERVER)
+
         for c in range(self.cfg.N_CAMERAS):
             camera_subfolder = self.cfg.IMGS_FROM_SERVER / f"cam{c}"
             camera_subfolder.mkdir(parents=True)
@@ -253,6 +253,15 @@ class Inizialization:
         new_out_dir.mkdir()
         self.cfg.OUT_DIR_BATCH = new_out_dir
         self.cfg.DATABASE = self.cfg.OUT_FOLDER / current_dir / "db.db"
+
+        if os.path.exists('./points3D.pkl'):
+            os.remove('./points3D.pkl')
+
+        existing_frames = os.listdir(self.cfg.IMGS_FROM_SERVER / "cam0")
+
+        for c in range(self.cfg.N_CAMERAS):
+            for img in existing_frames:
+                os.remove(self.cfg.IMGS_FROM_SERVER / f"cam{c}" / img)
 
         return self.cfg
 

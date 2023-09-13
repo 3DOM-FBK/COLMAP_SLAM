@@ -38,17 +38,7 @@ def MappingProcess(
         keyframes_list, 
         logger, 
         cfg, 
-        newer_imgs, 
-        first_colmap_loop, 
         lock, 
-        SEQUENTIAL_OVERLAP, 
-        adjacency_matrix, 
-        keypoints, 
-        descriptors, 
-        laf, 
-        init, 
-        SNAPSHOT_DIR, 
-        processed_imgs,
         keyframes_dict,
         exit_bool,
         ):
@@ -63,15 +53,18 @@ def MappingProcess(
     print("Initialize COLMAP API")
     colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
     n_keyframes = 0
-
+    first_colmap_loop = True
+    adjacency_matrix = None
+    SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
+    keypoints, descriptors, laf = {}, {}, {}
 
     while True:
         time.sleep(cfg.MAPPING_SLEEP_TIME)
         # Maybe here a problem, you can see after some minutes
-        print('acquiring keyframes')
+        #print('acquiring keyframes')
         with lock:
             kfrms = keyframes_dict.keys()
-        print('finished acquiring images')
+        #print('finished acquiring images')
         if len(kfrms) < cfg.MIN_KEYFRAME_FOR_INITIALIZATION or len(kfrms) == n_keyframes:
             continue
 

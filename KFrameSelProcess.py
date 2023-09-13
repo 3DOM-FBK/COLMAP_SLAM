@@ -20,7 +20,7 @@ from watchdog.events import FileSystemEventHandler
 new_images = []
 class NewFileHandler(FileSystemEventHandler):
 
-    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock, keyframes_dict):
+    def __init__(self, imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, lock, keyframes_dict):
         self.imgs = imgs
         self.pointer = pointer
         self.delta = delta
@@ -30,8 +30,6 @@ class NewFileHandler(FileSystemEventHandler):
         self.logger = logger
         self.cfg = cfg
         self.processed_imgs = processed_imgs
-        self.newer_imgs = newer_imgs
-        self.kfm_batch = kfm_batch
         self.lock = lock
         self.keyframes_dict = keyframes_dict
 
@@ -52,9 +50,6 @@ class NewFileHandler(FileSystemEventHandler):
             self.imgs.sort()
             #imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
             #self.logger.info(f'len {len(self.imgs)}')
-            #with self.lock:
-            #    self.newer_imgs.value = False  # To control that new keyframes are added
-            self.newer_imgs.value = False  # To control that new keyframes are added
             processed = 0  # Number of processed images
             if len(self.imgs) < 1:
                 pass
@@ -184,8 +179,8 @@ class NewFileHandler(FileSystemEventHandler):
                     new_n_keyframes = len(os.listdir(self.cfg.KF_DIR_BATCH / "cam0"))
                     if new_n_keyframes - old_n_keyframes > 0:
                         #with self.lock:
-                        #    self.newer_imgs.value = True ##############################################  NOT USED ANYMORE!!!!
-                        self.kfm_batch.append(img.name)
+                        #self.kfm_batch.append(img.name)
+                        pass
                         
                         #keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
                         #with open('keyframes.txt', 'a') as kfm_imgs:
@@ -209,17 +204,20 @@ class NewFileHandler(FileSystemEventHandler):
 def KFrameSelProcess(
         cfg,
         keyframes_list, 
-        pointer,
-        delta,
-        SNAPSHOT_DIR,
         processed_imgs,
         logger,
-        kfm_batch,
-        newer_imgs,
         lock,
         keyframes_dict,
         exit_bool,
         ):
+
+    pointer = 0  # pointer points to the last oriented image
+    delta = 0  # delta is equal to the number of processed but not oriented imgs
+
+    if cfg.SNAPSHOT == True:
+        SNAPSHOT_DIR = './frames'
+    elif cfg.SNAPSHOT == False:
+        SNAPSHOT_DIR = None
 
     # Setup keyframe selector
     kf_selection_detecor_config = KeyFrameSelConfFile(cfg)
@@ -242,19 +240,12 @@ def KFrameSelProcess(
         n_camera=cfg.N_CAMERAS,
     )
 
-    # Togliere, non viene usato
-    ## Setup local feature to use on keyframes
-    #local_feat_conf = LocalFeatConfFile(cfg)
-    #local_feat_extractor = LocalFeatureExtractor(
-    #    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
-    #)
-
     ### MANAGING FILE CHANGES IN DIRECTORIES
     imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
     screen = []
     new_images.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
     screen.append(cv2.imread(str(imgs[0]), cv2.IMREAD_UNCHANGED))
-    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, newer_imgs, kfm_batch, lock, keyframes_dict)
+    event_handler = NewFileHandler(imgs, keyframe_selector, pointer, delta, screen, logger, cfg, processed_imgs, lock, keyframes_dict)
     observer = Observer()
     observer.schedule(event_handler, path=cfg.IMGS_FROM_SERVER / "cam0", recursive=False)
     observer.start()
