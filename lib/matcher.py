@@ -17,6 +17,8 @@ from lib import h5_to_db, db_colmap
 from copy import deepcopy
 from collections import defaultdict
 
+LGlue = feature.LightGlueMatcher(feature_name='superpoint')
+
 def load_torch_image(fname, device=torch.device('cpu')):
     img = kornia.image_to_tensor(cv2.imread(fname), False).float() /255.
     img = kornia.color.bgr_to_rgb(img.to(device))
@@ -79,7 +81,7 @@ def Matcher(desc_1, desc_2, kornia_matcher : str, ratio_threshold, kps1, kps2, l
         kps2_tensor = torch.from_numpy(kps2[:,:2]).to(device='cuda')
         laf2 = feature.laf_from_center_scale_ori(kps2_tensor.unsqueeze(0),
                                              torch.ones(1, len(kps2), 1, 1,device='cuda'))
-        LGlue = feature.LightGlueMatcher(feature_name='superpoint')
+        #LGlue = feature.LightGlueMatcher(feature_name='superpoint')
         desc1_torch = torch.from_numpy(desc_1/np.max(desc_1)).to(dtype=torch.float32)
         desc2_torch = torch.from_numpy(desc_2/np.max(desc_2)).to(dtype=torch.float32)
         match_distances, matches_matrix = LGlue.forward(desc1_torch.cpu(), desc2_torch.cpu(), laf1.cpu(), laf2.cpu())

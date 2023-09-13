@@ -26,6 +26,7 @@ from lib.keyframes import KeyFrame, KeyFrameList
 from lib.local_features import LocalFeatConfFile, LocalFeatureExtractor
 from lib import cameras
 from pathlib import Path
+from easydict import EasyDict as edict
 
 # Configuration file
 CFG_FILE = "config.ini"
@@ -100,12 +101,12 @@ local_feat_extractor = LocalFeatureExtractor(
     cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
 )
 
-# Superpoint
-from easydict import EasyDict as edict
-local_feat_conf2 = edict({})
-local_feat_extractor2 = LocalFeatureExtractor(
-    'SuperPoint', local_feat_conf2, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
-)
+# Setup local feature2. For now only Superpoint available
+if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
+    local_feat_conf2 = edict({})
+    local_feat_extractor2 = LocalFeatureExtractor(
+        cfg.LOCAL_FEAT2_LOCAL_FEATURE, local_feat_conf2, cfg.LOCAL_FEAT2_N_FEATURES, cfg.CAM, cfg.DATABASE,
+    )
 
 # If the camera coordinates are known from other sensors than gnss,
 # they can be stores in camera_coord_other_sensors dictionary and used
@@ -281,7 +282,8 @@ while True:
             keypoints, descriptors, laf = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
             #print('run1')
             #print(keypoints[1].shape, descriptors[1].shape)
-            keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
+            if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
+                keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
             #print('run2')
             #print(keypoints[1].shape, descriptors[1].shape)
             #quit()
@@ -325,7 +327,8 @@ while True:
                 keypoints, descriptors = kpoints, des
                 for key in keypoints:
                     laf[key] = None
-                keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
+                if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
+                    keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
                 #print('qui', keypoints2[1].shape, descriptors2[1].shape)
                 #quit()
                 #for key in keypoints:
