@@ -61,7 +61,7 @@ if cfg.SNAPSHOT == True:
 elif cfg.SNAPSHOT == False:
     SNAPSHOT_DIR = None
 keyframes_list = KeyFrameList()
-processed_imgs = []
+#processed_imgs = []
 kfm_batch = []
 kfm_batch_frm_name = []
 pointer = 0  # pointer points to the last oriented image
@@ -119,14 +119,14 @@ if cfg.USE_EXTERNAL_CAM_COORD == True:
             id, x, y, z, _ = line.split(" ", 4)
             camera_coord_other_sensors[id] = (x, y, z)
 
-# Stream of input data
-if cfg.USE_SERVER == True:
-    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-else:
-    stream_proc = subprocess.Popen(["python", "./simulator.py"])
+## Stream of input data
+#if cfg.USE_SERVER == True:
+#    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+#else:
+#    stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
 
-#stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
 # Set-up plotqq
 # create_plot()
@@ -140,7 +140,7 @@ colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 # MAIN LOOP
 timer_global = utils.AverageTimer(logger=logger)
 while True:
-    # Get sorted image list available in imgs folders
+
     imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
 
     ## If using the simulator, check if process is still alive, otherwise quit
@@ -161,7 +161,7 @@ while True:
     if len(imgs) < 1:
         continue
 
-    if len(imgs) < 2:
+    if len(keyframes_list.keyframes) == 0:
         # Set first frame as keyframe
         img0 = imgs[pointer]
         existing_keyframe_number = 0
@@ -186,41 +186,42 @@ while True:
             continue
 
     elif len(imgs) >= 2:
-        for c, img in enumerate(imgs):
-            # Decide if new images are valid to be added to the sequential matching
-            # Only new images found in the target folder are processed.
-            # No more than MAX_IMG_BATCH_SIZE imgs are processed.
-            if img not in processed_imgs and c == 0:
-                processed_imgs.append(img)
-                processed += 1
-                continue
-            if img in processed_imgs or processed >= cfg.MAX_IMG_BATCH_SIZE:
-                continue
+        last_kfrm = keyframes_list.keyframes[-1]
+        img1 = last_kfrm._image_name
+        img2 = imgs[-1]
+        try:
+            new_img = cv2.imread(str(img2))
+        except:
+            logger.info('imge not read')
+            continue
+        
+        #if img not in processed_imgs and c == 0:
+        #    processed_imgs.append(img)
+        #    processed += 1
+        #    continue
+        #if img in processed_imgs or processed >= cfg.MAX_IMG_BATCH_SIZE:
+        #    continue
 
-            img1 = imgs[pointer]
-            img2 = img
 
-            logger.info(f"\nProcessing image pair ({img1}, {img2})")
-            logger.info(f"pointer {pointer} c {c}")
+        logger.info(f"\nProcessing image pair ({img1}, {img2})")
+        logger.info(f"pointer {pointer} c {c}")
+        old_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
+        (
+            keyframes_list,
+            pointer,
+            delta,
+            kfs_time,
+        ) = keyframe_selector.run(img1, img2)
 
-            old_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
-
-            (
-                keyframes_list,
-                pointer,
-                delta,
-                kfs_time,
-            ) = keyframe_selector.run(img1, img2)
-
-            # Set if new keyframes are added
-            new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
-            if new_n_keyframes - old_n_keyframes > 0:
-                newer_imgs = True
-                kfm_batch.append(img.name)
-                keyframe_obj = keyframes_list.get_keyframe_by_image_name(img)
-                kfm_batch_frm_name.append(keyframe_obj._keyframe_name)
-                with open('keyframes.txt', 'a') as kfm_imgs:
-                    kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
+        # Set if new keyframes are added
+        new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
+        if new_n_keyframes - old_n_keyframes > 0:
+            newer_imgs = True
+            kfm_batch.append(img2.name)
+            keyframe_obj = keyframes_list.get_keyframe_by_image_name(img2)
+            kfm_batch_frm_name.append(keyframe_obj._keyframe_name)
+            with open('keyframes.txt', 'a') as kfm_imgs:
+                kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
 
                 ## Load exif data and store GNSS position if present
                 ## or load camera cooridnates from other sensors
@@ -257,9 +258,8 @@ while True:
             #    keyframe_obj.enuX = enuX
             #    keyframe_obj.enuY = enuY
             #    keyframe_obj.enuZ = enuZ
-
-            processed_imgs.append(img)
-            processed += 1
+        #processed_imgs.append(img2)
+        #processed += 1
 
     # INCREMENTAL RECONSTRUCTION
     kfrms = os.listdir(cfg.KF_DIR_BATCH / "cam0")
@@ -484,7 +484,7 @@ while True:
             print("Failed Mapper. Reinitializing..")
             cfg = init.new_batch_solution()
             first_colmap_loop = True
-            for im in processed_imgs:
+            for im in imgs:
                 os.remove(cfg.CURRENT_DIR / im)
 
             # Reinit local feature extractor
@@ -500,7 +500,7 @@ while True:
 
             # Initialize variables
             keyframes_list = KeyFrameList()
-            processed_imgs = []
+            #processed_imgs = []
             pointer = 0
             delta = 0
             first_colmap_loop = True
@@ -724,9 +724,9 @@ while True:
 
         # REINITIALIZE SLAM
         if (
-            ori_ratio < cfg.MIN_ORIENTED_RATIO
+            #ori_ratio < cfg.MIN_ORIENTED_RATIO
             #or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
-            or oriented_kfs_len < cfg.NOT_ORIENTED_KFMS
+            oriented_kfs_len < cfg.NOT_ORIENTED_KFMS
         ):
             logger.info(
                 f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
@@ -736,7 +736,7 @@ while True:
             cfg = init.new_batch_solution()
             first_colmap_loop = True
 
-            for im in processed_imgs:
+            for im in imgs:
                 os.remove(cfg.CURRENT_DIR / im)
 
             # Reinit local feature extractor
@@ -753,7 +753,7 @@ while True:
             # Initialize variables
             print("\n\nREINITIALIZE ..")
             keyframes_list = KeyFrameList()
-            processed_imgs = []
+            #processed_imgs = []
             pointer = 0
             delta = 0
             first_colmap_loop = True
