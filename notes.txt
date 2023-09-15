@@ -11,7 +11,8 @@
                 cfg.DATABASE ######################################################################### Non ha senso importare keypoints, descriptors che poi vengono sovrascritti Fatto per descrittori > 128
             )
             true_indices = np.where(adjacency_matrix)
-
+For performance optimization:
+- [ ] Do not save txt reconstruction (only binary)
 
 ### CALIBRATIONS
 # Machine Hall

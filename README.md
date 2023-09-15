@@ -86,17 +86,10 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 ### TODO
 
 - [x] Add full compatibility to Kornia local features
-- [x] Add brute-force kornia matcher
-- [ ] Add SuperGlue
-- [ ] From Kornia add Loftr, Adalam
 - [x] Join multi camera code
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
-- [ ] Divide reconstruction in voxels to optimeze running time (loop closure based on nerest voxel)
-- [ ] Example testing
 
-For performance optimization:
-- [ ] Do not save txt reconstruction (only binary)
 
 ### Reference
 
