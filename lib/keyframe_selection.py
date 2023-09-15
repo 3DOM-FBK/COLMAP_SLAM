@@ -315,7 +315,7 @@ class KeyFrameSelector:
 
             return False
 
-    def run(self, img1: Union[str, Path], img2: Union[str, Path]):
+    def run(self, img1: Union[str, Path], img2: Union[str, Path], SEQUENTIAL_OVERLAP):
         self.timer = utils.AverageTimer()
 
         read = False
@@ -353,7 +353,7 @@ class KeyFrameSelector:
             for k in self.keyframes_list.keyframes:
                 if k._oriented == True:
                     oriented_kfrms += 1
-            additional_info = f"tot_kfrms: {tot_kfrms}  oriented_kfrms: {oriented_kfrms}"
+            additional_info = f"    tot_kfrms: {tot_kfrms}  oriented_kfrms: {oriented_kfrms}  match_window: {SEQUENTIAL_OVERLAP}"
             win_name = win_name + additional_info
 
         if self.realtime_viz:

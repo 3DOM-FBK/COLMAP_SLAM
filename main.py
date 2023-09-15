@@ -220,7 +220,7 @@ while True:
             pointer,
             delta,
             kfs_time,
-        ) = keyframe_selector.run(img1, img2)
+        ) = keyframe_selector.run(img1, img2, SEQUENTIAL_OVERLAP)
 
         # Set if new keyframes are added
         new_n_keyframes = len(os.listdir(cfg.KF_DIR_BATCH / "cam0"))
@@ -605,15 +605,31 @@ while True:
         #delta = last_keyframe_img_id - pointer
         delta = 0
 
-        # Update dynamic window for sequential matching
-        if delta != 0:
-            SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP + 2 * (
-                n_keyframes - last_oriented_keyframe
-            )
-            if SEQUENTIAL_OVERLAP > MAX_SEQUENTIAL_OVERLAP:
+        # Update dynamic window for sequential matching###############################################################
+        len_kfm_batch = len(kfm_batch)
+
+        last_not_oriented_kfrms = 0
+        for i in range(len(keyframes_list.keyframes)):
+            #print('len(keyframes_list.keyframes)-i', len(keyframes_list.keyframes)-i-1)
+            k = keyframes_list.keyframes[len(keyframes_list.keyframes)-i-1]
+            if k._oriented == False:
+                last_not_oriented_kfrms += 1
+            else:
+                break
+
+        if len_kfm_batch - oriented_kfs_len > 0:
+            if cfg.INITIAL_SEQUENTIAL_OVERLAP >= last_not_oriented_kfrms:
+                SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
+                print('111')
+            elif cfg.INITIAL_SEQUENTIAL_OVERLAP < last_not_oriented_kfrms:
+                SEQUENTIAL_OVERLAP = last_not_oriented_kfrms + 1
+                print('222')
+            elif SEQUENTIAL_OVERLAP > MAX_SEQUENTIAL_OVERLAP:
                 SEQUENTIAL_OVERLAP = MAX_SEQUENTIAL_OVERLAP
+                print('333')
         else:
             SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
+            print('444')
 
 
         ## Report SLAM solution in the reference system of the first image
@@ -728,7 +744,7 @@ while True:
         with open("./points3D.pkl", "wb") as f:
             pickle.dump(np.array(data), f)
 
-        len_kfm_batch = len(kfm_batch)
+        
         kfm_batch = []
         kfm_batch_frm_name = []
         first_colmap_loop = False
