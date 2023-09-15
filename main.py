@@ -119,14 +119,14 @@ if cfg.USE_EXTERNAL_CAM_COORD == True:
             id, x, y, z, _ = line.split(" ", 4)
             camera_coord_other_sensors[id] = (x, y, z)
 
-## Stream of input data
-#if cfg.USE_SERVER == True:
-#    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-#else:
-#    stream_proc = subprocess.Popen(["python", "./simulator.py"])
+# Stream of input data
+if cfg.USE_SERVER == True:
+    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+else:
+    stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
 
-stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+#stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
 # Set-up plotqq
 # create_plot()
@@ -623,16 +623,12 @@ while True:
         if len_kfm_batch - oriented_kfs_len > 0:
             if cfg.INITIAL_SEQUENTIAL_OVERLAP >= last_not_oriented_kfrms:
                 SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
-                print('111')
             elif cfg.INITIAL_SEQUENTIAL_OVERLAP < last_not_oriented_kfrms:
                 SEQUENTIAL_OVERLAP = last_not_oriented_kfrms + 1
-                print('222')
             elif SEQUENTIAL_OVERLAP > MAX_SEQUENTIAL_OVERLAP:
                 SEQUENTIAL_OVERLAP = MAX_SEQUENTIAL_OVERLAP
-                print('333')
         else:
             SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
-            print('444')
 
 
         ## Report SLAM solution in the reference system of the first image
@@ -788,6 +784,7 @@ while True:
 
             # Initialize variables
             print("\n\nREINITIALIZE ..")
+            SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
             keyframes_list = KeyFrameList()
             #processed_imgs = []
             pointer = 0
