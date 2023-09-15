@@ -319,7 +319,7 @@ while True:
 
             #matcher.PlotAdjacencyMatrix(adjacency_matrix)
             kpoints, des, images = import_local_features.ImportLocalFeature(
-                cfg.DATABASE ######################################################################### Non ha senso importare keypoints, descriptors che poi vengono sovrascritti Fatto per descrittori > 128
+                cfg.DATABASE
             )
             true_indices = np.where(adjacency_matrix)
 
@@ -329,8 +329,7 @@ while True:
                     laf[key] = None
                 if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
                     keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
-                #print('qui', keypoints2[1].shape, descriptors2[1].shape)
-                #quit()
+
                 #for key in keypoints:
                 #    keypoints[key] = np.vstack((keypoints[key][:cfg.LOCAL_FEAT_N_FEATURES,:], keypoints2[key][:cfg.LOCAL_FEAT_N_FEATURES,:]))
                 #    descriptors[key] = np.vstack((descriptors[key][:cfg.LOCAL_FEAT_N_FEATURES,:128], descriptors2[key][:cfg.LOCAL_FEAT_N_FEATURES,:128]))

@@ -5,7 +5,12 @@
 - Visualize in real time optical flow for keyframes (is a different local feature)
 - To save time, save local features from keyframe selection
 - For mapper, use tie points only from last 6 frames
-
+- pass Adalam to GPU, it is enough to import config file (https://kornia.readthedocs.io/en/latest/_modules/kornia/feature/adalam/adalam.html#match_adalam)
+- Check adalam and lightglue, LAF correctly implemented. See https://github.com/ducha-aiki/imc2023-kornia-starter-pack/blob/main/DISK-adalam-pycolmap-3dreconstruction.ipynb
+            kpoints, des, images = import_local_features.ImportLocalFeature(
+                cfg.DATABASE ######################################################################### Non ha senso importare keypoints, descriptors che poi vengono sovrascritti Fatto per descrittori > 128
+            )
+            true_indices = np.where(adjacency_matrix)
 
 
 ### CALIBRATIONS
