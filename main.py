@@ -49,9 +49,9 @@ logger = logging.getLogger()
 # Inizialize COLMAP SLAM problem
 init = utils.Inizialization(CFG_FILE)
 cfg = init.inizialize()
-cfg.PLOT_TRJECTORY = False # Please keep PLOT_TRAJECTORY = False.
+cfg.PLOT_TRJECTORY = False # Please keep PLOT_TRAJECTORY = False
 # It is used to plot an additional trajectory (matplotlib) but for now shows rarely a bug (multiple plots).
-# In any case the plot from opencv will show
+# In any case the plot from opencv will be shown
 
 # Initialize variables
 SEQUENTIAL_OVERLAP = cfg.SEQUENTIAL_OVERLAP
@@ -186,8 +186,17 @@ while True:
             continue
 
     elif len(imgs) >= 2:
-        last_kfrm = keyframes_list.keyframes[-1]
-        img1 = last_kfrm._image_name
+
+        if len(keyframes_list.keyframes) > cfg.NOT_ORIENTED_KFMS:
+            for i in range(1, len(keyframes_list.keyframes)):
+                last_oriented_kfrm = keyframes_list.keyframes[-i]
+                if last_oriented_kfrm._oriented == True:
+                    break
+        else:
+            last_oriented_kfrm = keyframes_list.keyframes[-1]
+
+        #last_kfrm = keyframes_list.keyframes[-1]
+        img1 = last_oriented_kfrm._image_name
         img2 = imgs[-1]
         try:
             new_img = cv2.imread(str(img2))
@@ -570,8 +579,9 @@ while True:
             #if "cam0/" + keyframe.keyframe_name in list(oriented_dict.keys()):
             k = keyframes_list.get_keyframe_by_image_name(Path("imgs/cam0/" + keyframe))
             if "cam0/" + k.keyframe_name in list(oriented_dict.keys()):
-                k.set_oriented
+                k.set_oriented()
                 oriented_kfs_len += 1
+
 
                 #for c in range(1, cfg.N_CAMERAS):
                 #    if f"cam{c}/" + keyframe.keyframe_name in list(oriented_dict.keys()):
@@ -718,18 +728,25 @@ while True:
         with open("./points3D.pkl", "wb") as f:
             pickle.dump(np.array(data), f)
 
+        len_kfm_batch = len(kfm_batch)
         kfm_batch = []
         kfm_batch_frm_name = []
         first_colmap_loop = False
 
+        oriented_kfrms = 0
+        for k in keyframes_list.keyframes:
+            if k._oriented == True:
+                oriented_kfrms += 1
+
         # REINITIALIZE SLAM
         if (
             #ori_ratio < cfg.MIN_ORIENTED_RATIO
-            #or total_kfs_number - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
-            oriented_kfs_len < cfg.NOT_ORIENTED_KFMS
+            #or 
+            total_kfs_number - oriented_kfrms > 3 * cfg.NOT_ORIENTED_KFMS or
+            len_kfm_batch - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
         ):
             logger.info(
-                f"Total keyframes: {total_kfs_number}; Oriented keyframes: {oriented_kfs_len}; Ratio: {ori_ratio}"
+                f"Total keyframes in the batch: {len_kfm_batch}; Oriented keyframes in the batch: {oriented_kfs_len}; Ratio: {ori_ratio}"
             )
             logger.info("Not enough oriented images")
 

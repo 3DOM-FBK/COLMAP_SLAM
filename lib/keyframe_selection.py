@@ -348,6 +348,13 @@ class KeyFrameSelector:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Keyframe accepted"
             else:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Frame rejected"
+            tot_kfrms = len(self.keyframes_list.keyframes)
+            oriented_kfrms = 0
+            for k in self.keyframes_list.keyframes:
+                if k._oriented == True:
+                    oriented_kfrms += 1
+            additional_info = f"tot_kfrms: {tot_kfrms}  oriented_kfrms: {oriented_kfrms}"
+            win_name = win_name + additional_info
 
         if self.realtime_viz:
             cv2.setWindowTitle("Keyframe Selection", win_name)
