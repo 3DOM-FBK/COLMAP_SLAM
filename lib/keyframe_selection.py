@@ -333,6 +333,7 @@ class KeyFrameSelector:
                 raise RuntimeError("Error in extract_features")
             if not self.match_features():
                 raise RuntimeError("Error in match_features")
+                #return self.keyframes_list, self.pointer, self.delta, time
             keyframe_accepted = self.innovation_check()
 
         except RuntimeError as e:

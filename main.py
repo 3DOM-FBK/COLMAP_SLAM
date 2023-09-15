@@ -164,6 +164,9 @@ while True:
     if len(keyframes_list.keyframes) == 0:
         # Set first frame as keyframe
         img0 = imgs[pointer]
+        image = cv2.imread(str(img0))
+        if image is None:
+            continue
         existing_keyframe_number = 0
         for c in range(cfg.N_CAMERAS):
             shutil.copy(
@@ -758,7 +761,7 @@ while True:
         if (
             #ori_ratio < cfg.MIN_ORIENTED_RATIO
             #or 
-            total_kfs_number - oriented_kfrms > 3 * cfg.NOT_ORIENTED_KFMS or
+            total_kfs_number - oriented_kfrms > 1 * cfg.NOT_ORIENTED_KFMS or
             len_kfm_batch - oriented_kfs_len > cfg.NOT_ORIENTED_KFMS
         ):
             logger.info(
