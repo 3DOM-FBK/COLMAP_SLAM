@@ -290,9 +290,11 @@ class LocalFeatureExtractor:
             for image_id, name in db.execute("SELECT image_id, name FROM images")
         )
         existing_images_inverted = {value: key for key, value in existing_images.items()}
-
+        print('existing_images')
+        print(existing_images)
         for cam in cams:
             imgs = os.listdir(keyframe_dir / cam)
+            print('imgs', imgs)
             for img in imgs:
                 img = Path(cam) / Path(img)
 

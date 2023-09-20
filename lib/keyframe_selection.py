@@ -315,7 +315,7 @@ class KeyFrameSelector:
 
             return False
 
-    def run(self, img1: Union[str, Path], img2: Union[str, Path]):
+    def run(self, img1: Union[str, Path], img2: Union[str, Path], SEQUENTIAL_OVERLAP):
         self.timer = utils.AverageTimer()
 
         read = False
@@ -333,6 +333,7 @@ class KeyFrameSelector:
                 raise RuntimeError("Error in extract_features")
             if not self.match_features():
                 raise RuntimeError("Error in match_features")
+                #return self.keyframes_list, self.pointer, self.delta, time
             keyframe_accepted = self.innovation_check()
 
         except RuntimeError as e:
@@ -348,6 +349,14 @@ class KeyFrameSelector:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Keyframe accepted"
             else:
                 win_name = f"{self.local_feature} - MMD {self.median_match_dist:.2f}: Frame rejected"
+
+            tot_kfrms = len(self.keyframes_list.keyframes)
+            oriented_kfrms = 0
+            for k in self.keyframes_list.keyframes:
+                if k._oriented == True:
+                    oriented_kfrms += 1
+            additional_info = f"    tot_kfrms: {tot_kfrms}  oriented_kfrms: {oriented_kfrms}  match_window: {SEQUENTIAL_OVERLAP}"
+            win_name = win_name + additional_info
 
         if self.realtime_viz:
             cv2.setWindowTitle("Keyframe Selection", win_name)

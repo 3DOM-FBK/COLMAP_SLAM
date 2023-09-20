@@ -58,6 +58,7 @@ class Inizialization:
         cfg.PLOT_TRJECTORY = config["DEFAULT"].getboolean("PLOT_TRJECTORY")
         cfg.SNAPSHOT = config["DEFAULT"].getboolean("SNAPSHOT")
         cfg.OS = config["DEFAULT"]["OS"]
+        cfg.FORCE_PROCESS_ALL_FRAMES = config["DEFAULT"].getboolean("FORCE_PROCESS_ALL_FRAMES")
         cfg.USE_SERVER = config["DEFAULT"].getboolean("USE_SERVER")
         cfg.LAUNCH_SERVER_PATH = Path(config["DEFAULT"]["LAUNCH_SERVER_PATH"])
         cfg.DEBUG = config["DEFAULT"].getboolean("DEBUG")
