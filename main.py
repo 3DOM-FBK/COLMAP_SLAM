@@ -5,7 +5,6 @@ import shutil
 import subprocess
 import time
 import glob
-
 import cv2
 import numpy as np
 import pydegensac
@@ -119,16 +118,16 @@ if cfg.USE_EXTERNAL_CAM_COORD == True:
             id, x, y, z, _ = line.split(" ", 4)
             camera_coord_other_sensors[id] = (x, y, z)
 
-# Stream of input data
-if cfg.USE_SERVER == True:
-    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-else:
-    stream_proc = subprocess.Popen(["python", "./simulator.py"])
+## Stream of input data
+#if cfg.USE_SERVER == True:
+#    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+#else:
+#    stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
 
-#stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
-# Set-up plotqq
+# Set-up plotq
 # create_plot()
 if cfg.PLOT_TRJECTORY:
     plot_proc = subprocess.Popen(["python", "./plot.py"])
@@ -201,7 +200,8 @@ while True:
 
     elif len(imgs) >= 2:
         if cfg.FORCE_PROCESS_ALL_FRAMES:
-            for c, img in enumerate(imgs):
+            # Accumulates delay when for long no keyframes are added
+            for c, img in enumerate(imgs[pointer:]):
                 # Decide if new images are valid to be added to the sequential matching
                 # Only new images found in the target folder are processed.
                 # No more than MAX_IMG_BATCH_SIZE imgs are processed.
@@ -282,7 +282,6 @@ while True:
             if new_n_keyframes - old_n_keyframes > 0:
                 newer_imgs = True
                 kfm_batch.append(img2.name)
-                print('kfm_batch.append(img2.name)', img2.name)
                 keyframe_obj = keyframes_list.get_keyframe_by_image_name(img2)
                 kfm_batch_frm_name.append(keyframe_obj._keyframe_name)
                 with open('keyframes.txt', 'a') as kfm_imgs:
@@ -305,19 +304,10 @@ while True:
 
         logger.info("Feature extraction")
         if cfg.LOCAL_FEAT_LOCAL_FEATURE != "RootSIFT":
-            #if len(keypoints.keys()) != 0:
-                #print('old')
-                #print(keypoints[1].shape, descriptors[1].shape)
-
-            print('kfm_batch_frm_name', kfm_batch_frm_name)
             keypoints, descriptors, laf = local_feat_extractor.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
-            #print('run1')
-            #print(keypoints[1].shape, descriptors[1].shape)
             if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
                 keypoints, descriptors, laf = local_feat_extractor2.run(cfg.DATABASE, cfg.KF_DIR_BATCH, cfg.IMG_FORMAT, keypoints, descriptors, laf, kfm_batch_frm_name)
-            #print('run2')
-            #print(keypoints[1].shape, descriptors[1].shape)
-            #quit()
+
         # Aggiungere LAF per RootSIFT
         elif cfg.LOCAL_FEAT_LOCAL_FEATURE == "RootSIFT":
             colmap.ExtractRootSiftFeatures(
@@ -348,9 +338,7 @@ while True:
                 first_colmap_loop,
             )
 
-            print('adjacency_matrix')
-            print(adjacency_matrix)
-
+            # Plot adjacency matrix for debug
             #matcher.PlotAdjacencyMatrix(adjacency_matrix)
             kpoints, des, images = import_local_features.ImportLocalFeature(
                 cfg.DATABASE
@@ -370,7 +358,6 @@ while True:
 
             d = new_n_keyframes - old_n_keyframes
             inverted_dict = {value: key for key, value in images.items()}
-            print('inverted_dict', inverted_dict)
 
             # Matching cam0 at different epochs
             for l, m in zip(true_indices[0], true_indices[1]):
@@ -379,7 +366,6 @@ while True:
                     kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
                     i = inverted_dict[f"cam0/{kfm2_name}"]
                     j = inverted_dict[f"cam0/{kfm1_name}"]
-                    print(f"cam0/{kfm2_name}", f"cam0/{kfm1_name}", i, j)
                     ij.append((i-1, j-1))
 
                     # Matching between different cameras at the same epoch
@@ -538,6 +524,7 @@ while True:
             #logger = logging.getLogger("ColmapSLAM")
 
             # Initialize variables
+            SEQUENTIAL_OVERLAP = cfg.INITIAL_SEQUENTIAL_OVERLAP
             keyframes_list = KeyFrameList()
             if cfg.FORCE_PROCESS_ALL_FRAMES:
                 processed_imgs = []
@@ -609,6 +596,8 @@ while True:
         for keyframe in kfm_batch: #for keyframe in keyframes_list.keyframes # for image in kfm_batch
             #if "cam0/" + keyframe.keyframe_name in list(oriented_dict.keys()):
             k = keyframes_list.get_keyframe_by_image_name(Path("imgs/cam0/" + keyframe))
+            if k.keyframe_name ==  None:
+                print('kfm_batch', kfm_batch)
             if "cam0/" + k.keyframe_name in list(oriented_dict.keys()):
                 k.set_oriented()
                 oriented_kfs_len += 1

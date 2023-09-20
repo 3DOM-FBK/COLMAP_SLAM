@@ -38,4 +38,4 @@ if __name__ == "__main__":
     config = configparser.ConfigParser()
     config.read("config.ini", encoding="utf-8")
     output_dir = config["DEFAULT"]["IMGS_FROM_SERVER"]
-    webcam("{}/cam0".format(output_dir), frame_rate = 5, wecam_id = 1)
+    webcam("{}/cam0".format(output_dir), frame_rate = 5, wecam_id = 0)

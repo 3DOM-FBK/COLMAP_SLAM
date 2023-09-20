@@ -89,6 +89,7 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 - [x] Join multi camera code
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
+- [ ] pycolmap
 
 
 ### Reference
