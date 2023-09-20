@@ -118,14 +118,14 @@ if cfg.USE_EXTERNAL_CAM_COORD == True:
             id, x, y, z, _ = line.split(" ", 4)
             camera_coord_other_sensors[id] = (x, y, z)
 
-## Stream of input data
-#if cfg.USE_SERVER == True:
-#    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
-#else:
-#    stream_proc = subprocess.Popen(["python", "./simulator.py"])
+# Stream of input data
+if cfg.USE_SERVER == True:
+    stream_proc = subprocess.Popen([cfg.LAUNCH_SERVER_PATH])
+else:
+    stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
 
-stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
+#stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
 # Set-up plotq
 # create_plot()

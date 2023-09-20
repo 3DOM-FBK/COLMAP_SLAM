@@ -283,18 +283,16 @@ class LocalFeatureExtractor:
     def run(self, database, keyframe_dir, image_format, kpts_key_colmap_id, descs_key_colmap_id, laf_key_colmap_id, kfm_batch_frm_name) -> None:
         
         db = db_colmap.COLMAPDatabase.connect(str(database))
-        cams = os.listdir(keyframe_dir)
+        cams = sorted(os.listdir(keyframe_dir))
 
         existing_images = dict(
             (image_id, name)
             for image_id, name in db.execute("SELECT image_id, name FROM images")
         )
         existing_images_inverted = {value: key for key, value in existing_images.items()}
-        print('existing_images')
-        print(existing_images)
+
         for cam in cams:
-            imgs = os.listdir(keyframe_dir / cam)
-            print('imgs', imgs)
+            imgs = sorted(os.listdir(keyframe_dir / cam))
             for img in imgs:
                 img = Path(cam) / Path(img)
 
