@@ -59,6 +59,7 @@ class Inizialization:
         cfg.SNAPSHOT = config["DEFAULT"].getboolean("SNAPSHOT")
         cfg.OS = config["DEFAULT"]["OS"]
         cfg.FORCE_PROCESS_ALL_FRAMES = config["DEFAULT"].getboolean("FORCE_PROCESS_ALL_FRAMES")
+        cfg.RESIZE_FACTOR = int(config["DEFAULT"]["RESIZE_FACTOR"])
         cfg.USE_SERVER = config["DEFAULT"].getboolean("USE_SERVER")
         cfg.LAUNCH_SERVER_PATH = Path(config["DEFAULT"]["LAUNCH_SERVER_PATH"])
         cfg.DEBUG = config["DEFAULT"].getboolean("DEBUG")

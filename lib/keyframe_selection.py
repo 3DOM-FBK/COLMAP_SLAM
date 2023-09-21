@@ -54,6 +54,7 @@ class KeyFrameSelector:
         error_threshold: int = 4,
         iterations: int = 1000,
         n_camera: int = 1,
+        resize_factor : int = 1,
 
     ) -> None:
         """
@@ -88,6 +89,8 @@ class KeyFrameSelector:
         self.error_threshold=error_threshold
         self.iterations=iterations
         self.n_camera=n_camera
+        self.resize_factor = resize_factor
+
         if n_camera > 1:
             for i in range(1, n_camera):
                 camera_img_path = Path(keyframes_dir).parent / Path(f"cam{i}")
@@ -117,6 +120,7 @@ class KeyFrameSelector:
                 method=self.local_feature,
                 n_features=self.n_features,
                 cfg=self.local_feature_cfg,
+                resize_factor=self.resize_factor,
             )
 
         # Set initial keyframes, descr, mpts to None

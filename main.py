@@ -92,19 +92,30 @@ keyframe_selector = KeyFrameSelector(
     error_threshold=cfg.RANSAC_THRESHOLD,
     iterations=cfg.RANSAC_ITERATIONS,
     n_camera=cfg.N_CAMERAS,
+    resize_factor=cfg.RESIZE_FACTOR,
 )
 
 # Setup local feature
 local_feat_conf = LocalFeatConfFile(cfg)
 local_feat_extractor = LocalFeatureExtractor(
-    cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
+    cfg.LOCAL_FEAT_LOCAL_FEATURE, 
+    local_feat_conf, 
+    cfg.LOCAL_FEAT_N_FEATURES, 
+    cfg.CAM, 
+    cfg.DATABASE,
+    resize_factor=cfg.RESIZE_FACTOR,
 )
 
 # Setup local feature2. For now only Superpoint available
 if cfg.LOCAL_FEAT2_USE_ADDITIONAL_FEATURES == True:
     local_feat_conf2 = edict({})
     local_feat_extractor2 = LocalFeatureExtractor(
-        cfg.LOCAL_FEAT2_LOCAL_FEATURE, local_feat_conf2, cfg.LOCAL_FEAT2_N_FEATURES, cfg.CAM, cfg.DATABASE,
+        cfg.LOCAL_FEAT2_LOCAL_FEATURE, 
+        local_feat_conf2, 
+        cfg.LOCAL_FEAT2_N_FEATURES, 
+        cfg.CAM, 
+        cfg.DATABASE,
+        resize_factor=cfg.RESIZE_FACTOR,
     )
 
 # If the camera coordinates are known from other sensors than gnss,
@@ -515,7 +526,12 @@ while True:
             # Reinit local feature extractor
             local_feat_conf = LocalFeatConfFile(cfg)
             local_feat_extractor = LocalFeatureExtractor(
-                cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
+                cfg.LOCAL_FEAT_LOCAL_FEATURE, 
+                local_feat_conf, 
+                cfg.LOCAL_FEAT_N_FEATURES, 
+                cfg.CAM, 
+                cfg.DATABASE,
+                resize_factor=cfg.RESIZE_FACTOR,
             )
 
             # Setup logging level
@@ -554,7 +570,7 @@ while True:
                 error_threshold=cfg.RANSAC_THRESHOLD,
                 iterations=cfg.RANSAC_ITERATIONS,
                 n_camera=cfg.N_CAMERAS,
-
+                resize_factor=cfg.RESIZE_FACTOR,
             )
 
             continue
@@ -805,7 +821,12 @@ while True:
             # Reinit local feature extractor
             local_feat_conf = LocalFeatConfFile(cfg)
             local_feat_extractor = LocalFeatureExtractor(
-                cfg.LOCAL_FEAT_LOCAL_FEATURE, local_feat_conf, cfg.LOCAL_FEAT_N_FEATURES, cfg.CAM, cfg.DATABASE,
+                cfg.LOCAL_FEAT_LOCAL_FEATURE, 
+                local_feat_conf, 
+                cfg.LOCAL_FEAT_N_FEATURES, 
+                cfg.CAM, 
+                cfg.DATABASE,
+                resize_factor=cfg.RESIZE_FACTOR,
             )
 
             # Setup logging level
@@ -845,6 +866,7 @@ while True:
                 error_threshold=cfg.RANSAC_THRESHOLD,
                 iterations=cfg.RANSAC_ITERATIONS,
                 n_camera=cfg.N_CAMERAS,
+                resize_factor=cfg.RESIZE_FACTOR,
             )
 
             continue

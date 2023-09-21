@@ -15,6 +15,7 @@ from lib.thirdparty.alike.alike import ALike, configs
 from lib.thirdparty.SuperGlue.models.matching import Matching
 from lib.thirdparty.LightGlue.lightglue import SuperPoint
 from lib.thirdparty.LightGlue.lightglue.utils import load_image
+import torchvision.transforms as transforms
 
 class LocalFeatures:
     def __init__(
@@ -22,12 +23,14 @@ class LocalFeatures:
         method: str,
         n_features: int,
         cfg: dict = None,
+        resize_factor: int = 1,
     ) -> None:
         self.n_features = n_features
         self.method = method
 
         self.kpts = {}
         self.descriptors = {}
+        self.resize_factor = resize_factor
 
         # If method is ALIKE, load Alike model weights
         if self.method == "ALIKE":
@@ -76,6 +79,21 @@ class LocalFeatures:
         elif self.method == "LoFTR":
             self.kornia_cfg = cfg
 
+    def ResizeImg(self, img, resize_factor):
+        height, width, channels = img.shape
+        new_height, new_width = int(height / resize_factor), int(width / resize_factor)
+        img = cv2.resize(img, (new_width, new_height))
+        return img
+    
+    def ResizeImgTorch(self, img, resize_factor):
+        height, width, _, _ = input.shape
+        new_height, new_width = int(height / resize_factor), int(width / resize_factor)
+        resize = K.augmentation.Resize((new_height, new_width))
+        #height, width, channels = img.shape
+        #new_height, new_width = int(height / resize_factor), int(width / resize_factor)
+        img = resize.apply_transform(img)
+        return img
+
     def ORB(self, images: List[Path]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         for im_path in images:
             im_path = Path(im_path)
@@ -117,13 +135,14 @@ class LocalFeatures:
     def ALIKE(self, images: List[Path]):
         for im_path in images:
             img = cv2.cvtColor(cv2.imread(str(im_path)), cv2.COLOR_BGR2RGB)
+            img = self.ResizeImg(img, self.resize_factor)
             #h, w, c = img.shape
             #ratio = 0.15
             #img = cv2.resize(img, (int(w*ratio), int(h*ratio)))
             features = self.model(img, sub_pixel=self.alike_cfg.subpixel)
 
-            self.kpts[im_path.stem] = features["keypoints"] #* 1/ratio
-            self.descriptors[im_path.stem] = features["descriptors"] #* 1/ratio
+            self.kpts[im_path.stem] = features["keypoints"] * self.resize_factor
+            self.descriptors[im_path.stem] = features["descriptors"] #* self.resize_factor
 
             laf = None
 
@@ -177,11 +196,12 @@ class LocalFeatures:
     def KeyNetAffNetHardNet(self, images: List[Path]):
         for im_path in images:
             img = self.load_torch_image(str(im_path)).to(self.device)
+            img = self.ResizeImgTorch(img, self.resize_factor)
             keypts = KF.KeyNetAffNetHardNet(
                 num_features=self.n_features, upright=True, device=torch.device("cuda")
             ).forward(img)
             laf = keypts[0].cpu().detach().numpy()
-            self.kpts[im_path.stem] = keypts[0].cpu().detach().numpy()[-1, :, :, -1]
+            self.kpts[im_path.stem] = keypts[0].cpu().detach().numpy()[-1, :, :, -1] * self.resize_factor
             self.descriptors[im_path.stem] = keypts[2].cpu().detach().numpy()[-1, :, :]
 
         return self.kpts, self.descriptors, laf
@@ -271,10 +291,15 @@ class LocalFeatureExtractor:
         n_features: int = 1024,
         cam_calib : dict = {},
         database : Union[str, Path] = "",
+        resize_factor : int = 1,
     ) -> None:
+
         self.local_feature = local_feature
         self.detector_and_descriptor = LocalFeatures(
-            local_feature, n_features, local_feature_cfg
+            local_feature, 
+            n_features, 
+            local_feature_cfg, 
+            resize_factor,
         )
         
         cameras.CreateCameras(cam_calib, database)
