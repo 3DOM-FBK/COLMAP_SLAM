@@ -124,7 +124,6 @@ if cfg.USE_SERVER == True:
 else:
     stream_proc = subprocess.Popen(["python", "./simulator.py"])
 
-
 #stream_proc = subprocess.Popen(["python", "./lib/webcam.py"])
 
 # Set-up plotq

@@ -10,7 +10,7 @@ from PIL import Image, ImageOps
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 50
+SKIP = 0
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
@@ -33,10 +33,13 @@ def run_simulator(
 
         for c in reversed(range(n_camera)):
             im_name = imgs[i].name
+            #im_name = im_name[8:] # for ant3d
             im = Image.open(input_dir / f"cam{c}/data" / im_name)
+            #im = Image.open(input_dir / f"cam{c}/data" / f"ANT3D_{c+1}_{im_name}") # for ant3d
             rgb_im = im.convert("RGB")
             if equalize == True:
                 rgb_im = ImageOps.equalize(rgb_im)
+            #rgb_im.thumbnail((612, 512), Image.Resampling.LANCZOS) # for ant3d
             rgb_im.save(Path(output_dir) / f"cam{c}" / f"{Path(im_name).stem}.{ext}")
             time.sleep(sleep)
 
