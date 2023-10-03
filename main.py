@@ -208,8 +208,10 @@ while True:
                     processed_imgs.append(img)
                     processed += 1
                     continue
-                if img in processed_imgs or processed >= cfg.MAX_IMG_BATCH_SIZE:
+                if img in processed_imgs:
                     continue
+                if processed >= cfg.MAX_IMG_BATCH_SIZE:
+                    break
 
                 img1 = imgs[pointer]
                 img2 = img
@@ -235,7 +237,6 @@ while True:
                     kfm_batch_frm_name.append(keyframe_obj._keyframe_name)
                     with open('keyframes.txt', 'a') as kfm_imgs:
                         kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
-
 
                 processed_imgs.append(img)
                 processed += 1
@@ -287,6 +288,7 @@ while True:
                     kfm_imgs.write(f"{keyframe_obj._image_name},{cfg.KF_DIR_BATCH}/cam0/{keyframe_obj._keyframe_name}\n")
             #processed_imgs.append(img2)
             #processed += 1
+    
 
     # INCREMENTAL RECONSTRUCTION
     kfrms = os.listdir(cfg.KF_DIR_BATCH / "cam0")
@@ -594,6 +596,7 @@ while True:
 
         for keyframe in kfm_batch: #for keyframe in keyframes_list.keyframes # for image in kfm_batch
             #if "cam0/" + keyframe.keyframe_name in list(oriented_dict.keys()):
+            print('keyframe', keyframe)
             k = keyframes_list.get_keyframe_by_image_name(Path("imgs/cam0/" + keyframe))
             if k.keyframe_name ==  None:
                 print('kfm_batch', kfm_batch)

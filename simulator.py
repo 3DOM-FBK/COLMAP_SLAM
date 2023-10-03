@@ -1,25 +1,21 @@
-import configparser
-import logging
-import os
-import shutil
-import sys
 import time
+import configparser
 from pathlib import Path
-
 from PIL import Image, ImageOps
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 0
+SKIP = 0 # 5000
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
 ):
+    print(len(imgs))
     for i in range(len(imgs)):
         if i < SKIP:
             continue
         if i == END:
-            logging.info(
+            print(
                 f"Processed {END} images. Change the END variable in simulator.py to process more."
             )
             quit()
@@ -39,11 +35,11 @@ def run_simulator(
             rgb_im = im.convert("RGB")
             if equalize == True:
                 rgb_im = ImageOps.equalize(rgb_im)
-            #rgb_im.thumbnail((612, 512), Image.Resampling.LANCZOS) # for ant3d
+            #rgb_im.thumbnail((960, 600), Image.Resampling.LANCZOS) # for ant3d
             rgb_im.save(Path(output_dir) / f"cam{c}" / f"{Path(im_name).stem}.{ext}")
             time.sleep(sleep)
 
-    logging.info("No more images available")
+    print("No more images available")
 
 
 if __name__ == "__main__":
@@ -56,6 +52,19 @@ if __name__ == "__main__":
     sleep = float(config["DEFAULT"]["SIMULATOR_SLEEP_TIME"])
     equalize = config["DEFAULT"].getboolean("EQUALIZE")
     n_camera = int(config["CALIBRATION"]["N_CAMERAS"])
+
+    path_to_kfrms_cam0 = Path(input_dir / "cam0/data")
+    if not path_to_kfrms_cam0.exists():
+        print(
+            '\nERROR: Keyframe directory cam0:', 
+            Path(input_dir / "cam0/data"), 
+            '\nKeframe dir do not exist, check the input path:',
+            '\nExpected dir structures:'
+            '\ninput_path',
+            '\n--> cam0',
+            '\n----> data',
+            '\n------> 00000.jpg',
+            )
 
     imgs = sorted(Path(input_dir / "cam0/data").glob("*"))
     run_simulator(input_dir, imgs, output_dir, ext, step, sleep, equalize, n_camera)
