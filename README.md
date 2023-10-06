@@ -90,9 +90,10 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 - [ ] Join loop-closure detection
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
-- [ ] pycolmap
-- [ ] optimize the code for long sequences
-
+- [ ] Pycolmap
+- [ ] Optimize the code for long sequences
+- [ ] Add option to resize too big images
+- [ ] Add pose graph optimization
 
 ### Reference
 
