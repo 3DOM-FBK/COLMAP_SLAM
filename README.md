@@ -94,14 +94,43 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 
 ### Reference
 
-Reference Article:
-COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY.
-
-Authors:
-L. Morelli, F. Ioli, R. Beber, F. Menna, F. Remondino, A. Vitti
+@article{morelli2023colmap,
+  title={COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY},
+  author={Morelli, L and Ioli, F and Beber, R and Menna, F and Remondino, F and Vitti, A},
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={317--324},
+  year={2023},
+  publisher={Copernicus Publications G{\"o}ttingen, Germany}
+}
 
 ### Reference
 
 Acknowledgements
 For keyframe selection and display: ALIKE (https://github.com/Shiaoming/ALIKE)
 For detectors and matching: Kornia (https://github.com/kornia/kornia)
+
+
+### License
+
+MIT License
+
+Copyright (c) 2023 3DOM-FBK
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in alls
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
