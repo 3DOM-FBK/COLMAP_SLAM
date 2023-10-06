@@ -97,15 +97,7 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 
 ### Reference
 
-@article{morelli2023colmap,
-  title={COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY},
-  author={Morelli, L and Ioli, F and Beber, R and Menna, F and Remondino, F and Vitti, A},
-  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
-  volume={48},
-  pages={317--324},
-  year={2023},
-  publisher={Copernicus Publications G{\"o}ttingen, Germany}
-}
+Morelli, L., Ioli, F., Beber, R., Menna, F., Remondino, F. and Vitti, A., 2023. COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY. The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences, 48, pp.317-324.
 
 ### Acknowledgements
 
