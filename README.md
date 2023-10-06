@@ -4,9 +4,9 @@ https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/af549427-8e87-445d-92f3-
 
 COLMAP_SLAM is a Visual-SLAM based on COLMAP API and is mainly intended for the development and testing of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository relys on Kornia (https://github.com/kornia/kornia) for matching, and some detectors and descriptors.
 
-Monocular and multicamera scenario are supported. We are joining an other repository with other features (GNSS and IMU aiding). If interested in the project please contact us, you are free to join.
+Monocular and multicamera scenario are supported. We are joining an other repository with other features (loop-closure detection, GNSS and IMU aiding). We are optimizing the code for very long sequences. If interested in the project please contact us, you are free to join.
 
-Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to [COLMAP](https://github.com/colmap/colmap)
+Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to [COLMAP](https://github.com/colmap/colmap).
 
 | Local Feature      | Supported | Matcher     | Supported |
 |----------          |---------- |----------   |---------- |
@@ -87,9 +87,11 @@ The options related to COLMAP APIs are in the lib folder with format .ini
 
 - [x] Add full compatibility to Kornia local features
 - [x] Join multi camera code
+- [ ] Join loop-closure detection
 - [ ] Join GNSS positioning
 - [ ] Join IMU aiding
 - [ ] pycolmap
+- [ ] optimize the code for long sequences
 
 
 ### Reference
@@ -104,9 +106,8 @@ The options related to COLMAP APIs are in the lib folder with format .ini
   publisher={Copernicus Publications G{\"o}ttingen, Germany}
 }
 
-### Reference
+### Acknowledgements
 
-Acknowledgements
 For keyframe selection and display: ALIKE (https://github.com/Shiaoming/ALIKE)
 For detectors and matching: Kornia (https://github.com/kornia/kornia)
 
