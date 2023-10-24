@@ -7,3 +7,5 @@ pydegensac
 easydict
 pyquaternion
 kornia
+h5py
+tqdm
