@@ -4,55 +4,20 @@ import time
 import configparser
 from pathlib import Path
 from PIL import Image, ImageOps
+from lib.utils.sort_by_time_stamp import SortByTimeStamp
 
 DEBUG = False
 END = 100000000  # max number of images to process
 SKIP = 50 #2000, 1500, 5500
+SHOW_CAMERA_FLOW = True
 
-
-def SortByTimeStamp(original_img_list):
-    sorted_img_list = []
-    imgs = copy.deepcopy(original_img_list)
-    for i in range(len(imgs)):
-        im = imgs[i]
-        im = Path(im)
-        name = str(Path(im.name).stem)
-        sec = int(name[:10])
-        nano_ = name[10:]
-        missing = len(nano_)-9
-        for m in range(missing):
-            nano_ = nano_ + '0'
-        nano = int(nano_)
-        sorted_img_list.append((im, sec, nano))
-    sorted_img_list.sort(key=lambda x: (x[1], x[2]))
-    sorted_img_list = [t[0] for t in sorted_img_list]
-    return sorted_img_list
 
 def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
 ):
-
-    ## Sort images respect seconds and nanoseconds
-    #imgs_to_be_sorted = []
-    #for i in range(len(imgs)):
-    #    im = imgs[i]
-    #    im = Path(im)
-    #    name = str(Path(im.name).stem)
-    #    #sec = int(name[:-9])
-    #    #nano = int(name[-9:])
-    #    sec = int(name[:10])
-    #    nano_ = name[10:]
-    #    missing = len(nano_)-9
-    #    for m in range(missing):
-    #        nano_ = nano_ + '0'
-    #    nano = int(nano_)
-    #    imgs_to_be_sorted.append((im, sec, nano))
-    #imgs_to_be_sorted.sort(key=lambda x: (x[1], x[2]))
-    #imgs = [t[0] for t in imgs_to_be_sorted]
-
+    
     imgs = SortByTimeStamp(imgs)
 
-    #cv2.namedWindow("Image Viewer", cv2.WINDOW_NORMAL)
     for i in range(len(imgs)):
         if i < SKIP:
             continue
@@ -69,10 +34,12 @@ def run_simulator(
         if DEBUG:
             print(f"processing {i}-th img ({i}/{len(imgs)})")
 
-        im_name = imgs[i].name
-        image = cv2.imread(str(input_dir / f"cam0/data" / im_name))
-        cv2.imshow("Image Viewer", image)
-        cv2.waitKey(1)
+        if SHOW_CAMERA_FLOW:
+            cv2.namedWindow("Image Viewer", cv2.WINDOW_NORMAL)
+            im_name = imgs[i].name
+            image = cv2.imread(str(input_dir / f"cam0/data" / im_name))
+            cv2.imshow("Image Viewer", image)
+            cv2.waitKey(1)
 
         for c in reversed(range(n_camera)):
             im_name = imgs[i].name
