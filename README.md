@@ -104,7 +104,6 @@ Morelli, L., Ioli, F., Beber, R., Menna, F., Remondino, F. and Vitti, A., 2023. 
 For keyframe selection and display: ALIKE (https://github.com/Shiaoming/ALIKE)
 For detectors and matching: Kornia (https://github.com/kornia/kornia)
 
-
 ### License
 
 MIT License
