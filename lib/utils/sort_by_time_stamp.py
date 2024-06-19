@@ -10,6 +10,7 @@ def SortByTimeStamp(original_img_list):
         name = str(Path(im.name).stem)
         sec = int(name[:10])
         nano_ = name[10:]
+        #nano_ = Path(name).suffix[1:]
         missing = len(nano_)-9
         for m in range(missing):
             nano_ = nano_ + '0'

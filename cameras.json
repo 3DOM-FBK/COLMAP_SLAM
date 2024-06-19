@@ -1,0 +1,16 @@
+[
+    {
+      "ref_camera_id": 1,
+      "cameras":
+      [
+        {
+            "camera_id": 1,
+            "image_prefix": "cam0"
+        },
+        {
+            "camera_id": 2,
+            "image_prefix": "cam1"
+        }
+      ]
+    }
+  ]
