@@ -8,7 +8,7 @@ from lib.utils.sort_by_time_stamp import SortByTimeStamp
 
 DEBUG = False
 END = 100000000  # max number of images to process
-SKIP = 150 #2000, 1500, 5500
+SKIP = 50 #2000, 1500, 5500
 SHOW_CAMERA_FLOW = True
 
 
@@ -54,6 +54,8 @@ def run_simulator(
 
         time.sleep(sleep)
 
+    for i in range(10000000000):
+        time.sleep(100)
     print("No more images available")
 
 
