@@ -16,7 +16,7 @@ def run_simulator(
     input_dir, imgs, output_dir="./imgs", ext="jpg", step=1, sleep=0.1, equalize=False, n_camera=1,
 ):
     
-    imgs = SortByTimeStamp(imgs)
+    #imgs = SortByTimeStamp(imgs)
 
     for i in range(len(imgs)):
         if i < SKIP:

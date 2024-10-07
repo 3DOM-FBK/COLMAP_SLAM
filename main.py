@@ -141,14 +141,14 @@ colmap = ColmapAPI(str(cfg.COLMAP_EXE_PATH))
 timer_global = utils.AverageTimer(logger=logger)
 
 imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
-imgs = SortByTimeStamp(imgs)
+#imgs = SortByTimeStamp(imgs)
 
 n_imgs = len(imgs)
 n_imgs_old = n_imgs
 while True:
 
     imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
-    imgs = SortByTimeStamp(imgs)
+    #imgs = SortByTimeStamp(imgs)
 
     # Check if new frames have been added
     n_imgs = len(imgs)
