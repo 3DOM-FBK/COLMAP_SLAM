@@ -1,20 +1,26 @@
 [
-  {
-    "ref_camera_id": 1,
-    "cameras":
-    [
-      {
-          "camera_id": 1,
-          "image_prefix": "cam0"
-      },
-      {
-          "camera_id": 2,
-          "image_prefix": "cam1"
-      },
-      {
-        "camera_id": 3,
-        "image_prefix": "cam2"
+    {
+      "ref_camera_id": 1,
+      "cameras":
+      [
+        {
+            "camera_id": 1,
+            "image_prefix": "cam0",
+            "cam_from_rig_rotation": [0.930, -0.001, -0.367, -0.002],
+            "cam_from_rig_translation": [-0.105689, -0.00948118, -0.0207497]
+        },
+        {
+            "camera_id": 2,
+            "image_prefix": "cam1",
+            "cam_from_rig_rotation": [-0.660, -0.006, 0.751, 0.005],
+            "cam_from_rig_translation": [-0.140711, -0.000875, -0.130745]
+        },
+        {
+          "camera_id": 3,
+          "image_prefix": "cam2",
+          "cam_from_rig_rotation": [1, 0, 0, 0],
+          "cam_from_rig_translation": [0, 0, 0]
+      }
+      ]
     }
-    ]
-  }
-]
+  ]
