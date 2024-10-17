@@ -310,10 +310,24 @@ class ColmapAPI:
                     "--output_path", output_path / "0",
                     "--rig_config_path", "./cameras.json",
 
-                    "--BundleAdjustment.refine_focal_length", "1",
-                    "--BundleAdjustment.refine_extra_params", "1",
-                    "--BundleAdjustment.refine_principal_point", "1",
-                    "--BundleAdjustment.refine_extrinsics", "1"
+                    "--BundleAdjustment.refine_focal_length", "0",
+                    "--BundleAdjustment.refine_extra_params", "0",
+                    "--BundleAdjustment.refine_principal_point", "0",
+                    "--BundleAdjustment.refine_extrinsics", "0",
+                    "--BundleAdjustment.max_num_iterations", "10",
+                    "--BundleAdjustment.max_linear_solver_iterations", "10"
+                ],
+                stdout=subprocess.DEVNULL,
+            )
+
+            subprocess.call(
+                [
+                    str(self.colmap_exe),
+                    "point_filtering",
+                    "--input_path", output_path / "0",
+                    "--output_path", output_path / "0",
+                    "--min_track_len", "4",
+                    "--max_reproj_error", "1.5"
                 ],
                 stdout=subprocess.DEVNULL,
             )
