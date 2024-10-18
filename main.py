@@ -366,26 +366,50 @@ while True:
             d = new_n_keyframes - old_n_keyframes
             inverted_dict = {value: key for key, value in images.items()}
 
+            # Spatial matching
+            spatial_matching_kfrm_ids = []
+            if os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"):
+                last_orineted_kfrm_id = oriented_dict_list[-1]
+                last_oriented_kfrm = keyframes_list.get_keyframe_by_id(last_orineted_kfrm_id)
+                last_oriented_kfrm_pos = np.array([last_oriented_kfrm.slamX, last_oriented_kfrm.slamY, last_oriented_kfrm.slamZ])
+                for oriented_kfrm_id in oriented_dict_list[:-1]:
+                    oriented_kfrm = keyframes_list.get_keyframe_by_id(oriented_kfrm_id)
+                    oriented_kfrm_pos = np.array([oriented_kfrm.slamX, oriented_kfrm.slamY, oriented_kfrm.slamZ])
+                    if np.linalg.norm(oriented_kfrm_pos - last_oriented_kfrm_pos) < 0.5:
+                        spatial_matching_kfrm_ids.append(oriented_kfrm._keyframe_name)
+            print('finished spatial matching')
             # Matching cam0 at different epochs
+            ciao = 0
             for l, m in zip(true_indices[0], true_indices[1]):
                 if l > m and l > old_adjacency_matrix_shape - 1:
                     kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
                     kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
-                    i = inverted_dict[f"cam0/{kfm2_name}"]
-                    j = inverted_dict[f"cam0/{kfm1_name}"]
-                    ij.append((i-1, j-1))
+                    #i = inverted_dict[f"cam0/{kfm2_name}"]
+                    #j = inverted_dict[f"cam0/{kfm1_name}"]
+                    #ij.append((i-1, j-1))
+                    for c in range(0, cfg.N_CAMERAS):
+                        i = inverted_dict[f"cam{c}/{kfm2_name}"]
+                        j = inverted_dict[f"cam{c}/{kfm1_name}"]
+                        ij.append((i-1, j-1))
+                    for name in spatial_matching_kfrm_ids:
+                        j = inverted_dict[f"cam0/{name}"]
+                        if adjacency_matrix[i-1,j-1] == False:
+                            ij.append((i-1, j-1))
+                            ciao = 1
 
                     # Matching between different cameras at the same epoch
                     for c in range(1, cfg.N_CAMERAS):
                         i = inverted_dict[f"cam{c}/{kfm1_name}"]
+                        j = inverted_dict[f"cam0/{kfm1_name}"]
                         ij.append((i-1, j-1))
-
+            print('here')
 
             if cfg.LOCAL_FEAT_LOCAL_FEATURE == "LoFTR":
                 matcher.LoFTR(cfg.KF_DIR_BATCH, images, ij, cfg.DATABASE)
 
             else:
                 for i, j in ij:
+                    print('i', i, 'j', j)
                     im1 = images[j + 1]
                     im2 = images[i + 1]
 
@@ -432,7 +456,7 @@ while True:
                         if matches_matrix.shape[0] < cfg.LOCAL_FEAT_MIN_MATCHES:
                             continue
                         db = db_colmap.COLMAPDatabase.connect(cfg.DATABASE)
-                        db.add_matches(int(j + 1), int(i + 1), matches_matrix)
+                        db.add_matches(int(j + 1), int(i + 1), matches_matrix.cpu().numpy())
                         pts1 = keypoints[j + 1][matches_matrix[:, 0], :2].reshape((-1, 2))
                         pts2 = keypoints[i + 1][matches_matrix[:, 1], :2].reshape((-1, 2))
                         if pts1.shape[0] > 8:
