@@ -241,7 +241,8 @@ class COLMAPDatabase(sqlite3.Connection):
         assert(matches.shape[1] == 2)
 
         if image_id1 > image_id2:
-            matches = matches[:,::-1]
+            #matches = matches[:,::-1]
+            matches = np.flip(matches, axis=1)
 
         pair_id = image_ids_to_pair_id(image_id1, image_id2)
         matches = np.asarray(matches, np.uint32)
