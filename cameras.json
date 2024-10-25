@@ -20,7 +20,19 @@
           "image_prefix": "cam2",
           "cam_from_rig_rotation": [1, 0, 0, 0],
           "cam_from_rig_translation": [0, 0, 0]
-      }
+      },
+      {
+        "camera_id": 4,
+        "image_prefix": "cam3",
+        "cam_from_rig_rotation": [-0.617, 0.006, 0.787, -0.005],
+        "cam_from_rig_translation": [-0.0110185, -0.0303036, -0.285421]
+    },
+    {
+      "camera_id": 5,
+      "image_prefix": "cam4",
+      "cam_from_rig_rotation": [0.996, -0.000, 0.086, -0.005],
+      "cam_from_rig_translation": [0.138488, -0.0301401, -0.156837]
+    }
       ]
     }
   ]
