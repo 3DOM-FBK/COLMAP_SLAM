@@ -166,7 +166,7 @@ class ColmapAPI:
         )
 
 
-    def Mapper(self, database_path: str, path_to_images: str, input_path: str, output_path: str, first_loop: bool):
+    def Mapper(self, database_path: str, path_to_images: str, input_path: str, output_path: str, first_loop: bool, loop_counter: int) -> None:
         if first_loop == True:
             subprocess.call(
                 [
@@ -235,13 +235,80 @@ class ColmapAPI:
             )
 
         elif first_loop == False:
+
+            subprocess.call(
+                [
+                    str(self.colmap_exe),
+                    "image_registrator",
+                    "--database_path", database_path,
+                    "--input_path", input_path / "0",
+                    "--output_path", output_path / "0",
+
+                    "--Mapper.ignore_watermarks",                           str(self.cfg_mapper["Mapper"]["ignore_watermarks"]),
+                    "--Mapper.multiple_models",                             str(self.cfg_mapper["Mapper"]["multiple_models"]),
+                    "--Mapper.extract_colors",                              str(self.cfg_mapper["Mapper"]["extract_colors"]),
+                    "--Mapper.ba_refine_focal_length",                      str(self.cfg_mapper["Mapper"]["ba_refine_focal_length"]),
+                    "--Mapper.ba_refine_principal_point",                   str(self.cfg_mapper["Mapper"]["ba_refine_principal_point"]),
+                    "--Mapper.ba_refine_extra_params",                      str(self.cfg_mapper["Mapper"]["ba_refine_extra_params"]),
+                    "--Mapper.fix_existing_images",                         str(self.cfg_mapper["Mapper"]["fix_existing_images"]),
+                    "--Mapper.tri_ignore_two_view_tracks",                  str(self.cfg_mapper["Mapper"]["tri_ignore_two_view_tracks"]),
+                    "--Mapper.min_num_matches",                             str(self.cfg_mapper["Mapper"]["min_num_matches"]),
+                    "--Mapper.max_num_models",                              str(self.cfg_mapper["Mapper"]["max_num_models"]),
+                    "--Mapper.max_model_overlap",                           str(self.cfg_mapper["Mapper"]["max_model_overlap"]),
+                    "--Mapper.min_model_size",                              str(self.cfg_mapper["Mapper"]["min_model_size"]),
+                    "--Mapper.init_image_id1",                              str(self.cfg_mapper["Mapper"]["init_image_id1"]),
+                    "--Mapper.init_image_id2",                              str(self.cfg_mapper["Mapper"]["init_image_id2"]),
+                    "--Mapper.init_num_trials",                             str(self.cfg_mapper["Mapper"]["init_num_trials"]),
+                    "--Mapper.num_threads",                                 str(self.cfg_mapper["Mapper"]["num_threads"]),
+                    "--Mapper.ba_min_num_residuals_for_multi_threading",    str(self.cfg_mapper["Mapper"]["ba_min_num_residuals_for_multi_threading"]),
+                    "--Mapper.ba_local_num_images",                         str(self.cfg_mapper["Mapper"]["ba_local_num_images"]),
+                    "--Mapper.ba_local_max_num_iterations",                 str(self.cfg_mapper["Mapper"]["ba_local_max_num_iterations"]),
+                    "--Mapper.ba_global_images_freq",                       str(self.cfg_mapper["Mapper"]["ba_global_images_freq"]),
+                    "--Mapper.ba_global_points_freq",                       str(self.cfg_mapper["Mapper"]["ba_global_points_freq"]),
+                    "--Mapper.ba_global_max_num_iterations",                str(self.cfg_mapper["Mapper"]["ba_global_max_num_iterations"]),
+                    "--Mapper.ba_global_max_refinements",                   str(self.cfg_mapper["Mapper"]["ba_global_max_refinements"]),
+                    "--Mapper.ba_local_max_refinements",                    str(self.cfg_mapper["Mapper"]["ba_local_max_refinements"]),
+                    "--Mapper.snapshot_images_freq",                        str(self.cfg_mapper["Mapper"]["snapshot_images_freq"]),
+                    "--Mapper.init_min_num_inliers",                        str(self.cfg_mapper["Mapper"]["init_min_num_inliers"]),
+                    "--Mapper.init_max_reg_trials",                         str(self.cfg_mapper["Mapper"]["init_max_reg_trials"]),
+                    "--Mapper.abs_pose_min_num_inliers",                    str(50),
+                    "--Mapper.max_reg_trials",                              str(self.cfg_mapper["Mapper"]["max_reg_trials"]),
+                    "--Mapper.tri_max_transitivity",                        str(self.cfg_mapper["Mapper"]["tri_max_transitivity"]),
+                    "--Mapper.tri_complete_max_transitivity",               str(self.cfg_mapper["Mapper"]["tri_complete_max_transitivity"]),
+                    "--Mapper.tri_re_max_trials",                           str(self.cfg_mapper["Mapper"]["tri_re_max_trials"]),
+                    "--Mapper.min_focal_length_ratio",                      str(self.cfg_mapper["Mapper"]["min_focal_length_ratio"]),
+                    "--Mapper.max_focal_length_ratio",                      str(self.cfg_mapper["Mapper"]["max_focal_length_ratio"]),
+                    "--Mapper.max_extra_param",                             str(self.cfg_mapper["Mapper"]["max_extra_param"]),
+                    "--Mapper.ba_global_images_ratio",                      str(self.cfg_mapper["Mapper"]["ba_global_images_ratio"]),
+                    "--Mapper.ba_global_points_ratio",                      str(self.cfg_mapper["Mapper"]["ba_global_points_ratio"]),
+                    "--Mapper.ba_global_max_refinement_change",             str(self.cfg_mapper["Mapper"]["ba_global_max_refinement_change"]),
+                    "--Mapper.ba_local_max_refinement_change",              str(self.cfg_mapper["Mapper"]["ba_local_max_refinement_change"]),
+                    "--Mapper.init_max_error",                              str(self.cfg_mapper["Mapper"]["init_max_error"]),
+                    "--Mapper.init_max_forward_motion",                     str(self.cfg_mapper["Mapper"]["init_max_forward_motion"]),
+                    "--Mapper.init_min_tri_angle",                          str(self.cfg_mapper["Mapper"]["init_min_tri_angle"]),
+                    "--Mapper.abs_pose_max_error",                          str(self.cfg_mapper["Mapper"]["abs_pose_max_error"]),
+                    "--Mapper.abs_pose_min_inlier_ratio",                   str(self.cfg_mapper["Mapper"]["abs_pose_min_inlier_ratio"]),
+                    "--Mapper.filter_max_reproj_error",                     str(self.cfg_mapper["Mapper"]["filter_max_reproj_error"]),
+                    "--Mapper.filter_min_tri_angle",                        str(self.cfg_mapper["Mapper"]["filter_min_tri_angle"]),
+                    "--Mapper.tri_create_max_angle_error",                  str(self.cfg_mapper["Mapper"]["tri_create_max_angle_error"]),
+                    "--Mapper.tri_continue_max_angle_error",                str(self.cfg_mapper["Mapper"]["tri_continue_max_angle_error"]),
+                    "--Mapper.tri_merge_max_reproj_error",                  str(self.cfg_mapper["Mapper"]["tri_merge_max_reproj_error"]),
+                    "--Mapper.tri_complete_max_reproj_error",               str(self.cfg_mapper["Mapper"]["tri_complete_max_reproj_error"]),
+                    "--Mapper.tri_re_max_angle_error",                      str(self.cfg_mapper["Mapper"]["tri_re_max_angle_error"]),
+                    "--Mapper.tri_re_min_ratio",                            str(self.cfg_mapper["Mapper"]["tri_re_min_ratio"]),
+                    "--Mapper.tri_min_angle",                               str(self.cfg_mapper["Mapper"]["tri_min_angle"]),
+                    "--Mapper.snapshot_path",                               str(self.cfg_mapper["Mapper"]["snapshot_path"]),
+                ],
+                stdout=subprocess.DEVNULL,
+            )
+
             subprocess.call(
                 [
                     str(self.colmap_exe),
                     "mapper",
                     "--image_path", path_to_images,
                     "--database_path", database_path,
-                    "--input_path", input_path / "0",
+                    "--input_path", output_path / "0",
                     "--output_path", output_path / "0",
 
                     "--Mapper.ignore_watermarks",                           str(self.cfg_mapper["Mapper"]["ignore_watermarks"]),
@@ -302,32 +369,35 @@ class ColmapAPI:
                 stdout=subprocess.DEVNULL,
             )
 
-            subprocess.call(
-                [
-                    str(self.colmap_exe),
-                    "rig_bundle_adjuster",
-                    "--input_path", output_path / "0",
-                    "--output_path", output_path / "0",
-                    "--rig_config_path", "./cameras.json",
+            if loop_counter % 1 == 0:
+                subprocess.call(
+                    [
+                        str(self.colmap_exe),
+                        "rig_bundle_adjuster",
+                        "--input_path", output_path / "0",
+                        "--output_path", output_path / "0",
+                        "--rig_config_path", "./cameras.json",
 
-                    "--BundleAdjustment.refine_focal_length", "0",
-                    "--BundleAdjustment.refine_extra_params", "0",
-                    "--BundleAdjustment.refine_principal_point", "0",
-                    "--BundleAdjustment.refine_extrinsics", "0",
-                    "--BundleAdjustment.max_num_iterations", "10",
-                    "--BundleAdjustment.max_linear_solver_iterations", "10"
-                ],
-                stdout=subprocess.DEVNULL,
-            )
+                        "--BundleAdjustment.refine_focal_length", "1",
+                        "--BundleAdjustment.refine_extra_params", "1",
+                        "--BundleAdjustment.refine_principal_point", "1",
+                        "--BundleAdjustment.refine_extrinsics", "1",
+                        "--BundleAdjustment.max_num_iterations", "20",
+                        "--BundleAdjustment.max_linear_solver_iterations", "20",
+                        "--estimate_rig_relative_poses", "1",
+                        "--RigBundleAdjustment.refine_relative_poses", "1"
+                    ],
+                    stdout=subprocess.DEVNULL,
+                )
 
-            subprocess.call(
-                [
-                    str(self.colmap_exe),
-                    "point_filtering",
-                    "--input_path", output_path / "0",
-                    "--output_path", output_path / "0",
-                    "--min_track_len", "4",
-                    "--max_reproj_error", "1.5"
-                ],
-                stdout=subprocess.DEVNULL,
-            )
+                subprocess.call(
+                    [
+                        str(self.colmap_exe),
+                        "point_filtering",
+                        "--input_path", output_path / "0",
+                        "--output_path", output_path / "0",
+                        "--min_track_len", "5",
+                        "--max_reproj_error", "1.5"
+                    ],
+                    stdout=subprocess.DEVNULL,
+                ) # "--min_track_len", "7",
