@@ -145,6 +145,7 @@ imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
 
 n_imgs = len(imgs)
 n_imgs_old = n_imgs
+loop_counter = 0
 while True:
 
     imgs = sorted((cfg.IMGS_FROM_SERVER / "cam0").glob(f"*.{cfg.IMG_FORMAT}"))
@@ -367,23 +368,27 @@ while True:
             inverted_dict = {value: key for key, value in images.items()}
 
             # Spatial matching
-            spatial_matching_kfrm_ids = []
-            if os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"):
-                last_orineted_kfrm_id = oriented_dict_list[-1]
-                last_oriented_kfrm = keyframes_list.get_keyframe_by_id(last_orineted_kfrm_id)
-                last_oriented_kfrm_pos = np.array([last_oriented_kfrm.slamX, last_oriented_kfrm.slamY, last_oriented_kfrm.slamZ])
-                for oriented_kfrm_id in oriented_dict_list[:-1]:
-                    oriented_kfrm = keyframes_list.get_keyframe_by_id(oriented_kfrm_id)
-                    oriented_kfrm_pos = np.array([oriented_kfrm.slamX, oriented_kfrm.slamY, oriented_kfrm.slamZ])
-                    if np.linalg.norm(oriented_kfrm_pos - last_oriented_kfrm_pos) < 0.5:
-                        spatial_matching_kfrm_ids.append(oriented_kfrm._keyframe_name)
-            print('finished spatial matching')
+            spatial_matching = True
+            if spatial_matching == True:
+                spatial_matching_kfrm_ids = []
+                if os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"): ############################################ DA SOSTITUIRE CON UN TRY EXCEPT
+                    last_orineted_kfrm_id = oriented_dict_list[-1]
+                    last_oriented_kfrm = keyframes_list.get_keyframe_by_id(last_orineted_kfrm_id)
+                    last_oriented_kfrm_pos = np.array([last_oriented_kfrm.slamX, last_oriented_kfrm.slamY, last_oriented_kfrm.slamZ])
+                    for oriented_kfrm_id in oriented_dict_list[:-1]:
+                        oriented_kfrm = keyframes_list.get_keyframe_by_id(oriented_kfrm_id)
+                        oriented_kfrm_pos = np.array([oriented_kfrm.slamX, oriented_kfrm.slamY, oriented_kfrm.slamZ])
+                        if np.linalg.norm(oriented_kfrm_pos - last_oriented_kfrm_pos) < 5:
+                            spatial_matching_kfrm_ids.append(oriented_kfrm._keyframe_name)
+                print('finished spatial matching')
+
             # Matching cam0 at different epochs
-            ciao = 0
             for l, m in zip(true_indices[0], true_indices[1]):
                 if l > m and l > old_adjacency_matrix_shape - 1:
                     kfm1_name = keyframes_list.get_keyframe_by_id(m)._keyframe_name
                     kfm2_name = keyframes_list.get_keyframe_by_id(l)._keyframe_name
+                    kfm1_id = keyframes_list.get_keyframe_by_id(m).keyframe_id
+                    kfm2_id = keyframes_list.get_keyframe_by_id(l).keyframe_id
                     #i = inverted_dict[f"cam0/{kfm2_name}"]
                     #j = inverted_dict[f"cam0/{kfm1_name}"]
                     #ij.append((i-1, j-1))
@@ -391,13 +396,36 @@ while True:
                         i = inverted_dict[f"cam{c}/{kfm2_name}"]
                         j = inverted_dict[f"cam{c}/{kfm1_name}"]
                         ij.append((i-1, j-1))
-                    for name in spatial_matching_kfrm_ids:
-                        j = inverted_dict[f"cam0/{name}"]
-                        if adjacency_matrix[i-1,j-1] == False:
-                            ij.append((i-1, j-1))
-                            ciao = 1
+                    
+                    if spatial_matching == True:
+                        for name in spatial_matching_kfrm_ids:
+                            kfm_id = keyframes_list.get_keyframe_by_name(name).keyframe_id
+                            if adjacency_matrix[kfm2_id,kfm_id] == False: #if adjacency_matrix[i-1,j-1] == False:
+                                method = "on_cam0" # ["on_cam0", "on_all_cams"]
+                                if method == "on_cam0":
+                                    i = inverted_dict[f"cam0/{kfm2_name}"]
+                                    j = inverted_dict[f"cam0/{name}"]
+                                    ij.append((i-1, j-1))
+                                elif method == "on_all_cams":
+                                    for c1 in range(0, cfg.N_CAMERAS):
+                                        i = inverted_dict[f"cam{c1}/{kfm2_name}"]
+                                        for c2 in range(0, cfg.N_CAMERAS):
+                                            j = inverted_dict[f"cam{c2}/{name}"]
+                                            ij.append((i-1, j-1))
 
                     # Matching between different cameras at the same epoch
+                    #i = inverted_dict[f"cam0/{kfm1_name}"]
+                    #j = inverted_dict[f"cam1/{kfm1_name}"]
+                    #ij.append((i-1, j-1))
+                    #i = inverted_dict[f"cam0/{kfm1_name}"]
+                    #j = inverted_dict[f"cam2/{kfm1_name}"]
+                    #ij.append((i-1, j-1))
+                    i = inverted_dict[f"cam1/{kfm1_name}"]
+                    j = inverted_dict[f"cam3/{kfm1_name}"]
+                    ij.append((i-1, j-1))
+                    i = inverted_dict[f"cam2/{kfm1_name}"]
+                    j = inverted_dict[f"cam4/{kfm1_name}"]
+                    ij.append((i-1, j-1))
                     for c in range(1, cfg.N_CAMERAS):
                         i = inverted_dict[f"cam{c}/{kfm1_name}"]
                         j = inverted_dict[f"cam0/{kfm1_name}"]
@@ -409,7 +437,7 @@ while True:
 
             else:
                 for i, j in ij:
-                    print('i', i, 'j', j)
+                    #print('i', i, 'j', j)
                     im1 = images[j + 1]
                     im2 = images[i + 1]
 
@@ -489,8 +517,9 @@ while True:
                                         mask = mask[:, 0]
                                     verified_matches_matrix = matches_matrix[mask, :]
                                     db.add_two_view_geometry(
-                                        int(j + 1), int(i + 1), verified_matches_matrix
+                                        int(j + 1), int(i + 1), verified_matches_matrix.cpu().numpy()
                                     )
+                                    print('i', i, 'j', j, 'mask.shape[0]', verified_matches_matrix.cpu().numpy().shape[0])
                                 except:
                                     logger.info("No valid geometry")
                             elif mask.shape[0] <= 8:
@@ -523,13 +552,14 @@ while True:
         timer.update("SEQUENTIAL MATCHER")
 
         logger.info("MAPPER")
-
+        loop_counter += 1
         colmap.Mapper(
             database_path=cfg.DATABASE,
             path_to_images=cfg.KF_DIR_BATCH,
             input_path=cfg.OUT_DIR_BATCH,
             output_path=cfg.OUT_DIR_BATCH,
             first_loop=first_colmap_loop,
+            loop_counter=loop_counter,
         )
         
         if not os.path.exists(f"{cfg.OUT_DIR_BATCH}/0"):
