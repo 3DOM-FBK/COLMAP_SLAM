@@ -23,8 +23,11 @@ def make_traj_plot(path_to_kfm_obj : str, path_to_pts_obj : str, width : int, he
                     Z.append(float(obj.slamZ))
                     cloud_file.write(f'{float(obj.slamX)}, {float(obj.slamY)}, {float(obj.slamZ)}, 255, 0, 0\n')
 
-        MAX_X = max(np.abs(X))
-        MAX_Z = max(np.abs(Z))
+        try:
+            MAX_X = max(np.abs(X))
+            MAX_Z = max(np.abs(Z))
+        except:
+            return img
         if MAX_X > MAX_Z:
             MAX = MAX_X
             buffer = width
