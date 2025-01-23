@@ -90,7 +90,7 @@ def initialize_reconstruction(
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction):
+def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, next_image_id, sequential=False):
     """Equivalent to IncrementalPipeline.reconstruct_sub_model(...)"""
     # register initial pair
     mapper.begin_reconstruction(reconstruction)
@@ -116,6 +116,12 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction):
         prev_reg_next_success = reg_next_success
         reg_next_success = False
         next_images = mapper.find_next_images(mapper_options)
+        if sequential:
+            next_images = [next_image_id]
+            if reconstruction.is_image_registered(next_image_id):
+                break
+        #print(reconstruction.num_reg_images())
+        #print(next_images); print(next_image_id);quit()
         if len(next_images) == 0:
             break
         for reg_trial in range(len(next_images)):
@@ -189,7 +195,7 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction):
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct(controller, mapper_options):
+def reconstruct(controller, mapper_options, next_image_id, sequential=False):
     """Equivalent to IncrementalPipeline.reconstruct(...)"""
     options = controller.options
     reconstruction_manager = controller.reconstruction_manager
@@ -208,7 +214,7 @@ def reconstruct(controller, mapper_options):
             reconstruction_idx = 0
         reconstruction = reconstruction_manager.get(reconstruction_idx)
         status = reconstruct_sub_model(
-            controller, mapper, mapper_options, reconstruction
+            controller, mapper, mapper_options, reconstruction, next_image_id, sequential
         )
         # Alternative use
         #status = controller.reconstruct_sub_model(mapper, mapper_options, reconstruction)
