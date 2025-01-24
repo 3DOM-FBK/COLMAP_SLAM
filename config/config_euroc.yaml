@@ -15,6 +15,7 @@ local_features:
         n_limit: 5000
 
 mapping:
+    sliding_window: 10
     max_match_distance: 5
     max_keyframes: 10000000
     method: "custom" # choices=['with_pycolmap_reconstruct', 'custom']

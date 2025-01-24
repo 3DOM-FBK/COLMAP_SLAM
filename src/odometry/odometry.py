@@ -126,7 +126,7 @@ class VisualOdometry:
         print(f"Time: {end-start}")
 
         # Start odometry
-        sliding_window = 10 # 30 stavo provando con 50, con 50 stava funzionando
+        sliding_window = self.config['mapping']['sliding_window'] # 30 stavo provando con 50, con 50 stava funzionando
         pycolmap.set_random_seed(0)
         options = pycolmap.IncrementalPipelineOptions()
         options.ba_refine_focal_length = False
@@ -209,90 +209,43 @@ class VisualOdometry:
                         #db.delete_inlier_matches(image_id1=keyframe_count+1-sliding_window, image_id2=keyframe_count-sliding_window) # ERROR ON INDEX OF 3D TIE POINTS (?) AFTER DELETING MATCHES IN DB
                     
                     #if reconstruction.num_reg_images() > 15:
-                    if self.test: reconstruction_manager.write("./work_dir/out1")
                     if keyframe_count == self.config['mapping']['max_keyframes']:
-                        reconstruction_manager.write("./work_dir/out1")
+                        reconstruction_manager.write("./work_dir/out")
                         quit()
-                    
-                    # If I rememeber well, did not work this approach. So I used reconstruction.deregister_image(image_id=keyframe_count+1-sliding_window)
-                    #to_deregister_image = reconstruction.image(image_id=keyframe_count+1-10)
-                    #if to_deregister_image.has_pose:
-                    #    to_deregister_image.reset_pose()
 
                     # Report the transformation on the lst_frm
-                    for i in reconstruction.reg_image_ids():
-                        image = reconstruction.image(image_id=i)
-                        print(image.projection_center())
                     lst_kfrm = reconstruction.image(image_id=keyframe_count)
-                    #t = lst_kfrm.projection_center() 
                     t = lst_kfrm.cam_from_world.translation
                     r = lst_kfrm.cam_from_world.rotation
-                    #transformation = lst_kfrm.cam_from_world
-                    #transformation_inverse = transformation.inverse().todict()
-                    #transformation_inverse['scale'] = 1
-                    #reconstruction.transform(transformation_inverse)
-                    reconstruction_manager.write("./work_dir/out")
-                    print('t:', t)
                     dict = {
                         'translation': t,
                         'rotation': r,
                         'scale': 1
                     }
                     reconstruction.transform(pycolmap.Sim3d(dict))
-                    for i in reconstruction.reg_image_ids():
-                        image = reconstruction.image(image_id=i)
-                        print(image.projection_center())
-                    reconstruction_manager.write("./work_dir/out1")
-                    #osafd += 1
-                    #if osafd == 20:
-                    #    quit()
 
-
-                    # Extract info 3d
+                    # Extract change in pose
                     lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
                     lst_kfrm = reconstruction.image(image_id=keyframe_count)
-                    #try:
                     new_kfrm = reconstruction.image(image_id=keyframe_count+1)
-                    #except:
-                    #    reconstruction_manager.write("./work_dir/out")
+
                     if baseline_old == 0:
                         baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
                         s = 1
-                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output2
+                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
                     else:
                         baseline = np.linalg.norm(lst_kfrm.projection_center() - lst_lst_kfrm.projection_center())
                         s = baseline / baseline_old
                         baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output2
-                        reconstruction_manager.write("./work_dir/out2")
+                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
                         
-                    delta_t = new_kfrm.projection_center()/s  # Output1
+                    delta_t = new_kfrm.projection_center()/s  # Output2
                     cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
                     cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                    #delta = pycolmap.Rigid3d(rotation=delta_q, translation=new_kfrm.cam_from_world.translation/s)
-                    #ego_motion = pycolmap.Sim3d({
-                    #    'rotation': ego_motion.transform_camera_world(delta).rotation,
-                    #    'translation': ego_motion.transform_camera_world(delta).translation
-                    #})
-                    #print(delta)
-                    #print(ego_motion)
-                    #T = ego_motion.translation
-                    #R = ego_motion.rotation
-                    #sol = -R.matrix() @ T
-                    ##cumulative = deepcopy(cumulative) + deepcopy(delta)
-                    ##print(cumulative)
                     norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                     out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
                     #out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
-                    #reconstruction_manager.write("./work_dir/out")
-                    osafd += 1
-                    if osafd == 10000:
-                        print(lst_kfrm.projection_center())
-                        print(lst_kfrm.cam_from_world.rotation.quat)
-                        quit()
                     
-
-
         db.close()
         out_file.close()
         reconstruction_manager.write("./work_dir/out")
