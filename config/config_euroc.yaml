@@ -1,0 +1,20 @@
+general:
+    test: False
+    verbose: True
+
+local_features:
+    features_name: superpoint
+    superpoint:
+        resize_width: 640
+        resize_height: 480
+        do_resize: True
+    aliked:
+        model_name: "aliked-n16rot" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
+        top_k: 500
+        scores_th: 0.2
+        n_limit: 5000
+
+mapping:
+    max_match_distance: 5
+    max_keyframes: 10000000
+    method: "custom" # choices=['with_pycolmap_reconstruct', 'custom']

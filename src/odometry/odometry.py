@@ -6,6 +6,7 @@ import pycolmap
 import numpy as np
 import kornia.feature as KF
 
+from pyquaternion import Quaternion
 from copy import deepcopy
 from tqdm import tqdm
 from pathlib import Path
@@ -14,6 +15,12 @@ from src.odometry.local_features import LocalFeatures
 from src.odometry.db_colmap import COLMAPDatabase
 from src.odometry.custom_incremental_pipeline import reconstruct
 
+def quat(colmap_quat: np.array) -> Quaternion:
+    x = colmap_quat[0]
+    y = colmap_quat[1]
+    z = colmap_quat[2]
+    w = colmap_quat[3]
+    return Quaternion(np.array([w, x, y, z]))
 
 class VisualOdometry:
     def __init__(
@@ -83,9 +90,13 @@ class VisualOdometry:
         #    cv2.destroyAllWindows()
         
         # Initialize database
+        osafd = 0
         baseline = 0
         baseline_old = 0
+        rotation_old = 0
+        ego_motion = pycolmap.Sim3d()
         cumulative = np.array([0, 0, 0])
+        cumulativa_quaternion = Quaternion(np.array([1, 0, 0, 0]))
         out_file_path = Path("./work_dir/out.txt")
         if out_file_path.exists():
             out_file_path.unlink()
@@ -115,7 +126,7 @@ class VisualOdometry:
         print(f"Time: {end-start}")
 
         # Start odometry
-        sliding_window = 50 # 30
+        sliding_window = 10 # 30 stavo provando con 50, con 50 stava funzionando
         pycolmap.set_random_seed(0)
         options = pycolmap.IncrementalPipelineOptions()
         options.ba_refine_focal_length = False
@@ -133,6 +144,10 @@ class VisualOdometry:
         mapper_options = controller.options.get_mapper()
         mapper_options.init_max_forward_motion = 0.99
         mapper_options.init_min_tri_angle = 1.0
+        mapper_options.init_max_error = 100.0
+        mapper_options.abs_pose_max_error = 50.0
+        mapper_options.abs_pose_min_num_inliers = 8
+        mapper_options.abs_pose_min_inlier_ratio = 0.05
         for frame_index in range(1, len(self.images)):
             frame_name = self.images[frame_index]
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[frame_name], batch_size=1)
@@ -154,7 +169,7 @@ class VisualOdometry:
             #if frame_index == 100:
             #    quit()
             
-            if median_match_dist > 10:
+            if median_match_dist > self.config['mapping']['max_match_distance']:
                 keyframe_count += 1
                 keyframe_name = deepcopy(frame_name)
                 # Elimiare i keypoints dei frames che non sono keyframes
@@ -209,15 +224,17 @@ class VisualOdometry:
                         image = reconstruction.image(image_id=i)
                         print(image.projection_center())
                     lst_kfrm = reconstruction.image(image_id=keyframe_count)
-                    t = lst_kfrm.projection_center() 
+                    #t = lst_kfrm.projection_center() 
+                    t = lst_kfrm.cam_from_world.translation
                     r = lst_kfrm.cam_from_world.rotation
                     #transformation = lst_kfrm.cam_from_world
                     #transformation_inverse = transformation.inverse().todict()
                     #transformation_inverse['scale'] = 1
                     #reconstruction.transform(transformation_inverse)
-                    print('t:', -t)
+                    reconstruction_manager.write("./work_dir/out")
+                    print('t:', t)
                     dict = {
-                        'translation': -t,
+                        'translation': t,
                         'rotation': r,
                         'scale': 1
                     }
@@ -225,6 +242,10 @@ class VisualOdometry:
                     for i in reconstruction.reg_image_ids():
                         image = reconstruction.image(image_id=i)
                         print(image.projection_center())
+                    reconstruction_manager.write("./work_dir/out1")
+                    #osafd += 1
+                    #if osafd == 20:
+                    #    quit()
 
 
                     # Extract info 3d
@@ -237,16 +258,38 @@ class VisualOdometry:
                     if baseline_old == 0:
                         baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
                         s = 1
+                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output2
                     else:
                         baseline = np.linalg.norm(lst_kfrm.projection_center() - lst_lst_kfrm.projection_center())
                         s = baseline / baseline_old
                         baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                    delta = (new_kfrm.projection_center() - lst_kfrm.projection_center())/s
-                    cumulative = deepcopy(cumulative) + deepcopy(delta)
-                    print(cumulative)
-                    out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
-                    #db.
+                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output2
+                        reconstruction_manager.write("./work_dir/out2")
+                        
+                    delta_t = new_kfrm.projection_center()/s  # Output1
+                    cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
+                    cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
+                    #delta = pycolmap.Rigid3d(rotation=delta_q, translation=new_kfrm.cam_from_world.translation/s)
+                    #ego_motion = pycolmap.Sim3d({
+                    #    'rotation': ego_motion.transform_camera_world(delta).rotation,
+                    #    'translation': ego_motion.transform_camera_world(delta).translation
+                    #})
+                    #print(delta)
+                    #print(ego_motion)
+                    #T = ego_motion.translation
+                    #R = ego_motion.rotation
+                    #sol = -R.matrix() @ T
+                    ##cumulative = deepcopy(cumulative) + deepcopy(delta)
+                    ##print(cumulative)
+                    norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                    out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
+                    #out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
                     #reconstruction_manager.write("./work_dir/out")
+                    osafd += 1
+                    if osafd == 10000:
+                        print(lst_kfrm.projection_center())
+                        print(lst_kfrm.cam_from_world.rotation.quat)
+                        quit()
                     
 
 
