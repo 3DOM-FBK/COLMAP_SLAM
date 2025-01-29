@@ -58,8 +58,8 @@ class LocalFeatures:
                     kpts = outputs['keypoints'][k]
                     kpts[:, 0] *= self.image_width / self.size['width']
                     kpts[:, 1] *= self.image_height / self.size['height']
-                    keypoints[image_files[i*batch_size+k]] = kpts
-                    descriptors[image_files[i*batch_size+k]] = outputs['descriptors'][k]
+                    keypoints[image_files[i*batch_size+k]] = kpts.to("cpu")
+                    descriptors[image_files[i*batch_size+k]] = outputs['descriptors'][k].to("cpu")
                 
                 del inputs, outputs
                 torch.cuda.empty_cache()
@@ -77,8 +77,8 @@ class LocalFeatures:
                     kpts = outputs['keypoints'][k]
                     kpts[:, 0] *= self.width / self.size['width']
                     kpts[:, 1] *= self.height / self.size['height']
-                    keypoints[image_files[steps*batch_size+k]] = kpts
-                    descriptors[image_files[steps*batch_size+k]] = outputs['descriptors'][k]
+                    keypoints[image_files[steps*batch_size+k]] = kpts.to("cpu")
+                    descriptors[image_files[steps*batch_size+k]] = outputs['descriptors'][k].to("cpu")
 
                 del inputs, outputs
                 torch.cuda.empty_cache()

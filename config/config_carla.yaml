@@ -6,8 +6,8 @@ general:
 local_features:
     features_name: superpoint # choices=['superpoint', 'aliked']
     superpoint:
-        resize_width: 1280 # tested with 640
-        resize_height: 960 # tested with 480
+        resize_width: 640 # tested with 640
+        resize_height: 480 # tested with 480
         do_resize: True
     aliked:
         model_name: "aliked-n32" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"

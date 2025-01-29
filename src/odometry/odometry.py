@@ -3,7 +3,6 @@ import cv2
 import time
 import torch
 import shutil
-import pycolmap
 import numpy as np
 import kornia.feature as KF
 
@@ -11,10 +10,14 @@ from pyquaternion import Quaternion
 from copy import deepcopy
 from tqdm import tqdm
 from pathlib import Path
-from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry
+
 from src.odometry.local_features import LocalFeatures
 from src.odometry.db_colmap import COLMAPDatabase
 from src.odometry.custom_incremental_pipeline import reconstruct
+
+#os.environ['GLOG_minloglevel'] = '3'  # Suppress all but fatal errors
+import pycolmap
+from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry
 
 def quat(colmap_quat: np.array) -> Quaternion:
     x = colmap_quat[0]
@@ -66,6 +69,8 @@ class VisualOdometry:
             self.lightglue_model = "superpoint"
         else:
             raise ValueError("Invalid local features model")
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
 
     def make_match_plot(
         self, img: np.ndarray, img2: np.ndarray, mpts1: np.ndarray, mpts2: np.ndarray, method: str = "flow",
@@ -92,19 +97,17 @@ class VisualOdometry:
 
     def match_features(self, keypoints, descriptors, pairs):
         matches = {}
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(device)
         with torch.inference_mode():
             for pair in pairs:
                 img1 = pair[0]
                 img2 = pair[1]
-                kps1, descs1 = keypoints[img1], descriptors[img1]
-                kps2, descs2 = keypoints[img2], descriptors[img2]
-                lafs1 = KF.laf_from_center_scale_ori(kps1[None], torch.ones(1, len(kps1), 1, 1, device=device))
-                lafs2 = KF.laf_from_center_scale_ori(kps2[None], torch.ones(1, len(kps2), 1, 1, device=device))
+                kps1, descs1 = keypoints[img1].to(self.device), descriptors[img1].to(self.device)
+                kps2, descs2 = keypoints[img2].to(self.device), descriptors[img2].to(self.device)
+                lafs1 = KF.laf_from_center_scale_ori(kps1[None], torch.ones(1, len(kps1), 1, 1, device=self.device))
+                lafs2 = KF.laf_from_center_scale_ori(kps2[None], torch.ones(1, len(kps2), 1, 1, device=self.device))
                 hw1 = np.array([self.height, self.width])
                 hw2 = np.array([self.height, self.width])
-                dists, idxs = lg_matcher(descs1, descs2, lafs1, lafs2, hw1=hw1, hw2=hw2)
+                dists, idxs = self.lg_matcher(descs1, descs2, lafs1, lafs2, hw1=hw1, hw2=hw2)
                 matches[(f'{img1}', f'{img2}')] = idxs
         return matches
 
@@ -198,7 +201,7 @@ class VisualOdometry:
         options.ba_refine_principal_point = False
         options.ba_refine_extra_params = False
         options.extract_colors = False
-        options.fix_existing_images = False
+        options.fix_existing_images = True
         options.ba_global_max_num_iterations = 25 # Tested with 25 iterations
 
         reconstruction_manager = pycolmap.ReconstructionManager()
@@ -325,6 +328,7 @@ class VisualOdometry:
                         #out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
                     
                     elif self.n_cameras == 2:
+                        #print('------------')
                         # Report the transformation on the lst_frm
                         lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-1)
                         t = lst_lst_kfrm.cam_from_world.translation
@@ -349,6 +353,7 @@ class VisualOdometry:
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                         out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
+                        #print('extracted pose')
 
         db.close()
         out_file.close()
