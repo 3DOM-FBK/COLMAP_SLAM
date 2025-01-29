@@ -1,6 +1,7 @@
 general:
     test: False
     verbose: True
+    n_cameras: 1 # Both monocular and multiview are supported
 
 local_features:
     features_name: superpoint

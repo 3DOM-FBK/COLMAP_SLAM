@@ -45,7 +45,7 @@ class LocalFeatures:
         rest = len(image_files) % batch_size
 
         with torch.no_grad():
-            for i in tqdm(range(steps)):
+            for i in range(steps):
                 images = []
                 for k in range(batch_size):
                     img = image_files[i*batch_size+k]
@@ -90,12 +90,12 @@ class LocalFeatures:
         descriptors = {}
         
         with torch.no_grad():
-            for img in tqdm(image_files):
+            for img in image_files:
                 cv2_img = cv2.imread(str(imgs_dir / img))
                 img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
                 pred = self.model.run(img_rgb)
-                keypoints[img] = pred['keypoints']
-                descriptors[img] = pred['descriptors']
+                keypoints[img] = torch.from_numpy(pred['keypoints']).to(self.device)
+                descriptors[img] = torch.from_numpy(pred['descriptors']).to(self.device)
 
         return keypoints, descriptors
 
