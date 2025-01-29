@@ -1,12 +1,12 @@
 general:
-    test: False
+    test: True
     verbose: True
-    n_cameras: 1 # Both monocular and multiview are supported
+    n_cameras: 2 # Both monocular and multiview are supported
 
 local_features:
     features_name: superpoint
     superpoint:
-        resize_width: 640
+        resize_width: 752
         resize_height: 480
         do_resize: True
     aliked:
@@ -17,6 +17,6 @@ local_features:
 
 mapping:
     sliding_window: 10
-    max_match_distance: 5
+    max_match_distance: 0.2
     max_keyframes: 10000000
     method: "custom" # choices=['with_pycolmap_reconstruct', 'custom']

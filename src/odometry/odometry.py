@@ -33,8 +33,8 @@ class VisualOdometry:
             camera_config: dict,
     ) -> None:
         
-        logging.verbose_level =0
-        logging.minloglevel  =2
+        logging.verbose_level = 0
+        logging.minloglevel = 2
 
         self.keyframes = []
         self.config = config
@@ -205,8 +205,9 @@ class VisualOdometry:
         options.ba_refine_principal_point = False
         options.ba_refine_extra_params = False
         options.extract_colors = False
-        options.fix_existing_images = True
-        options.ba_global_max_num_iterations = 25 # Tested with 25 iterations
+        options.fix_existing_images = False
+        options.ba_global_max_num_iterations = 12 # Tested with 25 iterations
+        options.ba_global_max_refinements = 1 # Tested with 5 refinements
 
         reconstruction_manager = pycolmap.ReconstructionManager()
         controller = pycolmap.IncrementalPipeline(
@@ -333,7 +334,7 @@ class VisualOdometry:
                     
                     elif self.n_cameras == 2:
                         # Report the transformation on the lst_frm
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-1)
+                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
                         t = lst_lst_kfrm.cam_from_world.translation
                         r = lst_lst_kfrm.cam_from_world.rotation
                         dict = {
@@ -343,15 +344,16 @@ class VisualOdometry:
                         }
                         reconstruction.transform(pycolmap.Sim3d(dict))
 
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-1)
+                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
                         lst_kfrm = reconstruction.image(image_id=keyframe_id)
                         new_kfrm = reconstruction.image(image_id=keyframe_id+1)
+                        #print(new_kfrm.name, lst_kfrm.name, lst_lst_kfrm.name)
 
                         baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                        s = baseline/1.5
-                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
+                        s = baseline/0.110078 # 1.5 CARLA  0.110078 EUROC
+                        delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
 
-                        delta_t = new_kfrm.projection_center()/s  # Output2
+                        delta_t = lst_kfrm.projection_center()/s  # Output2
                         cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
