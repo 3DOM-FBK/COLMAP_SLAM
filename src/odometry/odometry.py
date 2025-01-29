@@ -15,9 +15,8 @@ from src.odometry.local_features import LocalFeatures
 from src.odometry.db_colmap import COLMAPDatabase
 from src.odometry.custom_incremental_pipeline import reconstruct
 
-#os.environ['GLOG_minloglevel'] = '3'  # Suppress all but fatal errors
 import pycolmap
-from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry
+from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry, logging
 
 def quat(colmap_quat: np.array) -> Quaternion:
     x = colmap_quat[0]
@@ -33,9 +32,14 @@ class VisualOdometry:
             config: dict,
             camera_config: dict,
     ) -> None:
+        
+        logging.verbose_level =0
+        logging.minloglevel  =2
+
         self.keyframes = []
         self.config = config
         self.camera_config = camera_config
+        self.verbose = config['general']['verbose']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.images_dir = working_dir / "images"
         self.test = self.config['general']['test']
@@ -219,7 +223,7 @@ class VisualOdometry:
 
         # Start odometry
         # Keyframe selection based on optical flow
-        for frame_index in range(1, len(self.images)):
+        for frame_index in tqdm(range(1, len(self.images))):
             frame_name = f"cam0/{self.images[frame_index]}"
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[frame_name], batch_size=1)
             self.keypoints = self.keypoints | new_keypoints
@@ -328,7 +332,6 @@ class VisualOdometry:
                         #out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
                     
                     elif self.n_cameras == 2:
-                        #print('------------')
                         # Report the transformation on the lst_frm
                         lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-1)
                         t = lst_lst_kfrm.cam_from_world.translation
@@ -345,7 +348,7 @@ class VisualOdometry:
                         new_kfrm = reconstruction.image(image_id=keyframe_id+1)
 
                         baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                        s = baseline/1
+                        s = baseline/1.5
                         delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
                         delta_t = new_kfrm.projection_center()/s  # Output2
@@ -353,7 +356,6 @@ class VisualOdometry:
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                         out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
-                        #print('extracted pose')
 
         db.close()
         out_file.close()
