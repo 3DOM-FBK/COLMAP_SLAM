@@ -16,6 +16,8 @@ local_features:
         n_limit: 5000
 
 mapping:
+    start_frame: 230
+    baseline: 1.50 # 1.5 CARLA  0.110078 EUROC
     sliding_window: 10 # tested with 10
     max_match_distance: 5
     max_keyframes: 1000000

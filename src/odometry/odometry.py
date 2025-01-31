@@ -39,6 +39,8 @@ class VisualOdometry:
         self.keyframes = []
         self.config = config
         self.camera_config = camera_config
+        self.start_frame = config['mapping']['start_frame']
+        self.baseline = config['mapping']['baseline']
         self.verbose = config['general']['verbose']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.images_dir = working_dir / "images"
@@ -178,17 +180,17 @@ class VisualOdometry:
         for c in range(self.n_cameras):
             camera = Camera(self.camera_config[f"cam{c}"])
             db.write_camera(camera)
-            keyframe_name = f"cam{c}/{self.images[0]}"
+            keyframe_name = f"cam{c}/{self.images[self.start_frame]}"
             camera_id=1+c
             image_id=1+c
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[keyframe_name], batch_size=1)
             self.keypoints = self.keypoints | new_keypoints
             self.descriptors = self.descriptors | new_descriptors
             self.write_keypoints_to_db(db, keyframe_name, image_id, camera_id, self.keypoints)
-        keyframe_name = f"cam0/{self.images[0]}"
+        keyframe_name = f"cam0/{self.images[self.start_frame]}"
 
         if self.n_cameras != 1:
-            pairs = [(f"cam0/{self.images[0]}", f"cam1/{self.images[0]}")]
+            pairs = [(f"cam0/{self.images[self.start_frame]}", f"cam1/{self.images[self.start_frame]}")]
             matches = self.match_features(self.keypoints, self.descriptors, pairs)
             inlier_matches = matches[pairs[0]].cpu().numpy()
             db.write_two_view_geometry(
@@ -224,7 +226,7 @@ class VisualOdometry:
 
         # Start odometry
         # Keyframe selection based on optical flow
-        for frame_index in tqdm(range(1, len(self.images))):
+        for frame_index in tqdm(range(self.start_frame+1, len(self.images))):
             frame_name = f"cam0/{self.images[frame_index]}"
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[frame_name], batch_size=1)
             self.keypoints = self.keypoints | new_keypoints
@@ -350,14 +352,14 @@ class VisualOdometry:
                         #print(new_kfrm.name, lst_kfrm.name, lst_lst_kfrm.name)
 
                         baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                        s = baseline/0.110078 # 1.5 CARLA  0.110078 EUROC
+                        s = baseline/self.baseline
                         delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
 
                         delta_t = lst_kfrm.projection_center()/s  # Output2
                         cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
+                        out_file.write(f"{lst_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
 
         db.close()
         out_file.close()
