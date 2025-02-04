@@ -36,12 +36,13 @@ class VisualOdometry:
         logging.verbose_level = 0
         logging.minloglevel = 2
 
-        self.keyframes = []
+        self.keyframes = {}
         self.config = config
         self.camera_config = camera_config
         self.start_frame = config['mapping']['start_frame']
         self.baseline = config['mapping']['baseline']
         self.verbose = config['general']['verbose']
+        self.rig_match_rule = config['general']['rig_match_rule']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.images_dir = working_dir / "images"
         self.test = self.config['general']['test']
@@ -77,6 +78,16 @@ class VisualOdometry:
             raise ValueError("Invalid local features model")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
+    
+    def rig_match_pairs(self, img_name: str) -> list:
+        pairs = []
+        for pair in self.rig_match_rule:
+            camera1 = pair[0]
+            camera2 = pair[1]
+            image1 = f"{camera1}/{img_name}"
+            image2 = f"{camera2}/{img_name}"
+            pairs.append((image1, image2))
+        return pairs
     
     def check_stereo(self, img1: pycolmap.Image, img2: pycolmap.Image):
         timestamp_img1 = img1.name.split("/")[1]
@@ -175,6 +186,7 @@ class VisualOdometry:
         #quit()
         
         # Initialize database and odometry variables
+        last_keyframe = None
         baseline = 0
         baseline_old = 0
         keyframe_count = 1
@@ -194,17 +206,20 @@ class VisualOdometry:
             self.keypoints = self.keypoints | new_keypoints
             self.descriptors = self.descriptors | new_descriptors
             self.write_keypoints_to_db(db, keyframe_name, image_id, camera_id, self.keypoints)
+            self.keyframes[keyframe_name] = image_id
         keyframe_name = f"cam0/{self.images[self.start_frame]}"
 
         if self.n_cameras != 1:
-            pairs = [(f"cam0/{self.images[self.start_frame]}", f"cam1/{self.images[self.start_frame]}")]
+            pairs = self.rig_match_pairs(self.images[self.start_frame])
             matches = self.match_features(self.keypoints, self.descriptors, pairs)
-            inlier_matches = matches[pairs[0]].cpu().numpy()
-            db.write_two_view_geometry(
-                1,
-                2,
-                TwoViewGeometry({"inlier_matches": inlier_matches})
-                )
+            for pair in pairs:
+                kfrm1, kfrm2 = pair[0], pair[1]
+                inlier_matches = matches[pair].cpu().numpy()
+                db.write_two_view_geometry(
+                    self.keyframes[kfrm1],
+                    self.keyframes[kfrm2],
+                    TwoViewGeometry({"inlier_matches": inlier_matches})
+                    )
 
         # Mapper options
         sliding_window = self.config['mapping']['sliding_window']
@@ -259,24 +274,30 @@ class VisualOdometry:
                     keyframe_id,
                     TwoViewGeometry({"inlier_matches": inlier_matches})
                     )
+                self.keyframes[keyframe_name] = keyframe_id
                 
+                # Match slave cameras
                 if self.n_cameras != 1:
-                    # Match slave cameras
-                    slave_name = f"cam1/{self.images[frame_index]}"
-                    slave_id = keyframe_id+1
-                    camera_id = 2
-                    new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
-                    self.keypoints = self.keypoints | new_keypoints
-                    self.descriptors = self.descriptors | new_descriptors
-                    self.write_keypoints_to_db(db, slave_name, slave_id, camera_id, self.keypoints)
-                    pairs = [(keyframe_name, slave_name)]
+                    for c in range(1,self.n_cameras):
+                        slave_name = f"cam{c}/{self.images[frame_index]}"
+                        slave_id = keyframe_id+1*c
+                        self.keyframes[slave_name] = slave_id
+                        camera_id = c+1
+                        new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
+                        self.keypoints = self.keypoints | new_keypoints
+                        self.descriptors = self.descriptors | new_descriptors
+                        self.write_keypoints_to_db(db, slave_name, slave_id, camera_id, self.keypoints)
+
+                    pairs = self.rig_match_pairs(self.images[frame_index])
                     matches = self.match_features(self.keypoints, self.descriptors, pairs)
-                    inlier_matches = matches[(keyframe_name, slave_name)].cpu().numpy()
-                    db.write_two_view_geometry(
-                        keyframe_id,
-                        slave_id,
-                        TwoViewGeometry({"inlier_matches": inlier_matches})
-                        )
+                    for pair in pairs:
+                        kfrm1, kfrm2 = pair[0], pair[1]
+                        inlier_matches = matches[pair].cpu().numpy()
+                        db.write_two_view_geometry(
+                            self.keyframes[kfrm1],
+                            self.keyframes[kfrm2],
+                            TwoViewGeometry({"inlier_matches": inlier_matches})
+                            )
 
                 # Orient new keyframes
                 if keyframe_count > 5 and keyframe_count < sliding_window:
@@ -291,20 +312,25 @@ class VisualOdometry:
                     controller.load_database()
 
                     if self.config['mapping']['method'] == 'custom':
-                        reconstruct(controller, mapper_options, keyframe_id, True)
-                        if self.n_cameras == 2: reconstruct(controller, mapper_options, keyframe_id+1, True)
+                        for c in range(self.n_cameras):
+                            reconstruct(controller, mapper_options, keyframe_id+c, True)
 
                         reconstruction = reconstruction_manager.get(idx=0)
                         reg_image_ids = reconstruction.reg_image_ids()
-                        if len(reg_image_ids) == sliding_window and self.n_cameras == 1:
-                            reconstruction.deregister_image(image_id=min(reg_image_ids))
-                        if len(reg_image_ids) == self.n_cameras*sliding_window and self.n_cameras == 2:
-                            reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        n_images_to_deregister = len(reg_image_ids)-self.n_cameras*sliding_window
+                        for c in range(n_images_to_deregister):
                             reg_image_ids = reconstruction.reg_image_ids()
                             reconstruction.deregister_image(image_id=min(reg_image_ids))
-                        if len(reg_image_ids) == self.n_cameras*sliding_window-1 and self.n_cameras == 2:
-                            reconstruction.deregister_image(image_id=min(reg_image_ids))
-                        
+
+                        #if len(reg_image_ids) == sliding_window and self.n_cameras == 1:
+                        #    reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        #if len(reg_image_ids) == self.n_cameras*sliding_window and self.n_cameras == 2:
+                        #    reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        #    reg_image_ids = reconstruction.reg_image_ids()
+                        #    reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        #if len(reg_image_ids) == self.n_cameras*sliding_window-1 and self.n_cameras == 2:
+                        #    reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        #
                         if self.test: reconstruction_manager.write(self.out_dir)
 
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
@@ -369,6 +395,37 @@ class VisualOdometry:
 
                         self.check_stereo(new_kfrm, lst_kfrm)
                         self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
+
+                        baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
+                        s = baseline/self.baseline
+                        delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
+
+                        delta_t = lst_kfrm.projection_center()/s  # Output2
+                        cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
+                        cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
+                        norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                        out_file.write(f"{lst_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+
+                    else:
+                        # Report the transformation on the lst_frm
+                        print(keyframe_name);quit()
+                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-self.n_cameras)
+                        t = lst_lst_kfrm.cam_from_world.translation
+                        r = lst_lst_kfrm.cam_from_world.rotation
+                        dict = {
+                            'translation': t,
+                            'rotation': r,
+                            'scale': 1
+                        }
+                        reconstruction.transform(pycolmap.Sim3d(dict))
+                        if self.test: reconstruction_manager.write(self.out_dir)
+
+                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-self.n_cameras)
+                        lst_kfrm = reconstruction.image(image_id=keyframe_id)
+                        new_kfrm = reconstruction.image(image_id=keyframe_id+1)
+
+                        #self.check_stereo(new_kfrm, lst_kfrm)
+                        #self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
 
                         baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
                         s = baseline/self.baseline
