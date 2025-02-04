@@ -77,6 +77,13 @@ class VisualOdometry:
             raise ValueError("Invalid local features model")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
+    
+    def check_stereo(self, img1: pycolmap.Image, img2: pycolmap.Image):
+        timestamp_img1 = img1.name.split("/")[1]
+        timestamp_img2 = img2.name.split("/")[1]
+        if timestamp_img1 != timestamp_img2:
+            print(f"ERROR: {timestamp_img1} != {timestamp_img2}")
+            quit()
 
     def make_match_plot(
         self, img: np.ndarray, img2: np.ndarray, mpts1: np.ndarray, mpts2: np.ndarray, method: str = "flow",
@@ -271,8 +278,8 @@ class VisualOdometry:
                         TwoViewGeometry({"inlier_matches": inlier_matches})
                         )
 
-                
-                if keyframe_count > 5 and keyframe_count <= sliding_window:
+                # Orient new keyframes
+                if keyframe_count > 5 and keyframe_count < sliding_window:
                     controller.load_database()
                     if self.config['mapping']['method'] == 'custom':
                         reconstruct(controller, mapper_options, keyframe_id, False)
@@ -280,16 +287,26 @@ class VisualOdometry:
                         controller.reconstruct(mapper_options)
                     if self.test: reconstruction_manager.write(self.out_dir)
 
-                if keyframe_count > sliding_window-1:
+                elif keyframe_count > sliding_window-1:
                     controller.load_database()
-                    if self.test: reconstruction_manager.write(self.out_dir)
+
                     if self.config['mapping']['method'] == 'custom':
                         reconstruct(controller, mapper_options, keyframe_id, True)
                         if self.n_cameras == 2: reconstruct(controller, mapper_options, keyframe_id+1, True)
+
                         reconstruction = reconstruction_manager.get(idx=0)
-                        reconstruction.deregister_image(image_id=keyframe_id-sliding_window*2+2)
-                        if self.n_cameras == 2: reconstruction.deregister_image(image_id=keyframe_id+3-sliding_window*2)
+                        reg_image_ids = reconstruction.reg_image_ids()
+                        if len(reg_image_ids) == sliding_window and self.n_cameras == 1:
+                            reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        if len(reg_image_ids) == self.n_cameras*sliding_window and self.n_cameras == 2:
+                            reconstruction.deregister_image(image_id=min(reg_image_ids))
+                            reg_image_ids = reconstruction.reg_image_ids()
+                            reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        if len(reg_image_ids) == self.n_cameras*sliding_window-1 and self.n_cameras == 2:
+                            reconstruction.deregister_image(image_id=min(reg_image_ids))
+                        
                         if self.test: reconstruction_manager.write(self.out_dir)
+
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
                         controller.reconstruct(mapper_options)
                         reconstruction = reconstruction_manager.get(idx=0)
@@ -303,7 +320,7 @@ class VisualOdometry:
                     # Extract change in pose
                     if self.n_cameras == 1:
                         # Report the transformation on the lst_frm
-                        lst_kfrm = reconstruction.image(image_id=keyframe_count)
+                        lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
                         t = lst_kfrm.cam_from_world.translation
                         r = lst_kfrm.cam_from_world.rotation
                         dict = {
@@ -313,9 +330,9 @@ class VisualOdometry:
                         }
                         reconstruction.transform(pycolmap.Sim3d(dict))
 
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
-                        lst_kfrm = reconstruction.image(image_id=keyframe_count)
-                        new_kfrm = reconstruction.image(image_id=keyframe_count+1)
+                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-2)
+                        lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
+                        new_kfrm = reconstruction.image(image_id=keyframe_count)
 
                         if baseline_old == 0:
                             baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
@@ -332,7 +349,6 @@ class VisualOdometry:
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                         out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
-                        #out_file.write(f"{cumulative[0]}\t{cumulative[1]}\t{cumulative[2]}\t{baseline_old}\t{baseline}\t{np.linalg.norm(lst_kfrm.projection_center()/s - lst_lst_kfrm.projection_center()/s)}\n")
                     
                     elif self.n_cameras == 2:
                         # Report the transformation on the lst_frm
@@ -345,11 +361,14 @@ class VisualOdometry:
                             'scale': 1
                         }
                         reconstruction.transform(pycolmap.Sim3d(dict))
+                        if self.test: reconstruction_manager.write(self.out_dir)
 
                         lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
                         lst_kfrm = reconstruction.image(image_id=keyframe_id)
                         new_kfrm = reconstruction.image(image_id=keyframe_id+1)
-                        #print(new_kfrm.name, lst_kfrm.name, lst_lst_kfrm.name)
+
+                        self.check_stereo(new_kfrm, lst_kfrm)
+                        self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
 
                         baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
                         s = baseline/self.baseline
