@@ -44,18 +44,27 @@ class VisualOdometry:
         self.start_frame = config['mapping']['start_frame']
         self.baseline = config['mapping']['baseline']
         self.verbose = config['general']['verbose']
-        self.rig_match_rule = config['general']['rig_match_rule']
+        self.rig_match_rule = config['mapping']['rig_match_rule']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.images_dir = working_dir / "images"
         self.test = self.config['general']['test']
-        self.n_cameras = self.config['general']['n_cameras']
+        self.cameras = self.config['mapping']['cameras']
+        self.cameras = sorted(self.cameras, key=lambda x: int(x[3:]))
+        self.n_cameras = len(self.cameras)
+        self.cameras_for_baseline_estim = config['mapping']['cameras_for_baseline_estim']
+        if "cam0" not in self.cameras_for_baseline_estim:
+            print("ERROR: cam0 must be included in cameras_for_baseline_estim")
+            quit()
+        for camera in self.cameras_for_baseline_estim:
+            if camera != "cam0":
+                self.second_baseline_camera = camera
         self.keypoints, self.descriptors = {}, {}
 
         self.database_path = working_dir / "database.db"
         if self.database_path.exists():
             self.database_path.unlink()
         
-        self.out_file_path = working_dir / "out.txt"
+        self.out_file_path = working_dir / "images.txt"
         if self.out_file_path.exists():
             self.out_file_path.unlink()
         
@@ -198,10 +207,10 @@ class VisualOdometry:
         out_file = open(self.out_file_path, "a")
 
         db = Database(str(self.database_path))
-        for c in range(self.n_cameras):
-            camera = Camera(self.camera_config[f"cam{c}"])
+        for c, cam in enumerate(self.cameras):
+            camera = Camera(self.camera_config[f"{cam}"])
             db.write_camera(camera)
-            keyframe_name = f"cam{c}/{self.images[self.start_frame]}"
+            keyframe_name = f"{cam}/{self.images[self.start_frame]}"
             camera_id=1+c
             image_id=1+c
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[keyframe_name], batch_size=1)
@@ -284,16 +293,17 @@ class VisualOdometry:
                 
                 # Match slave cameras
                 if self.n_cameras != 1:
-                    for c in range(1,self.n_cameras):
-                        slave_name = f"cam{c}/{self.images[frame_index]}"
-                        slave_id = keyframe_id+1*c
-                        self.keyframes_names[slave_name] = slave_id
-                        self.keyframes_ids[slave_id] = slave_name
-                        camera_id = c+1
-                        new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
-                        self.keypoints = self.keypoints | new_keypoints
-                        self.descriptors = self.descriptors | new_descriptors
-                        self.write_keypoints_to_db(db, slave_name, slave_id, camera_id, self.keypoints)
+                    for c, cam in enumerate(self.cameras):
+                        if c != 0:
+                            slave_name = f"{cam}/{self.images[frame_index]}"
+                            slave_id = keyframe_id+1*c
+                            self.keyframes_names[slave_name] = slave_id
+                            self.keyframes_ids[slave_id] = slave_name
+                            camera_id = c+1
+                            new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
+                            self.keypoints = self.keypoints | new_keypoints
+                            self.descriptors = self.descriptors | new_descriptors
+                            self.write_keypoints_to_db(db, slave_name, slave_id, camera_id, self.keypoints)
 
                     pairs = self.rig_match_pairs(self.images[frame_index])
                     matches = self.match_features(self.keypoints, self.descriptors, pairs)
@@ -337,7 +347,7 @@ class VisualOdometry:
                             for img_id in list(set(self.keyframes_master_ids) & set(reconstruction.reg_image_ids())):
                                 master_camera = reconstruction.image(image_id=img_id)
                                 timestamp = self.keyframes_ids[img_id].split("/")[1]
-                                slave_camera_id = self.keyframes_names[f"cam3/{timestamp}"] # [f"cam1/{timestamp}"] FOR CARLA
+                                slave_camera_id = self.keyframes_names[f"{self.second_baseline_camera}/{timestamp}"]
                                 if slave_camera_id in reconstruction.reg_image_ids():
                                     slave_camera = reconstruction.image(image_id=slave_camera_id)
                                     baselines_norm_space.append(np.linalg.norm(slave_camera.projection_center()-master_camera.projection_center()))
@@ -440,6 +450,8 @@ class VisualOdometry:
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                         out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+                        #t = -cumulativa_quaternion.rotation_matrix @ cumulative
+                        #out_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion.inverse[0]} {cumulativa_quaternion.inverse[1]} {cumulativa_quaternion.inverse[2]} {cumulativa_quaternion.inverse[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
 
         db.close()
         out_file.close()
