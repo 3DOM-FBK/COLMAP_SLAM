@@ -64,9 +64,13 @@ class VisualOdometry:
         if self.database_path.exists():
             self.database_path.unlink()
         
-        self.out_file_path = working_dir / "images.txt"
+        self.out_file_path = working_dir / "trajectory.txt"
         if self.out_file_path.exists():
             self.out_file_path.unlink()
+
+        self.out_images_file_path = working_dir / "images.txt"
+        if self.out_images_file_path.exists():
+            self.out_images_file_path.unlink()
         
         self.out_dir = working_dir / "out"
         if self.out_dir.exists():
@@ -205,6 +209,8 @@ class VisualOdometry:
         cumulative = np.array([0, 0, 0])
         cumulativa_quaternion = Quaternion(np.array([1, 0, 0, 0]))
         out_file = open(self.out_file_path, "a")
+        out_images_file = open(self.out_images_file_path, "a")
+        out_file.write("# {new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
 
         db = Database(str(self.database_path))
         for c, cam in enumerate(self.cameras):
@@ -399,35 +405,35 @@ class VisualOdometry:
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
                         out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
                     
-                    elif self.n_cameras == 2:
-                        # Report the transformation on the lst_frm
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
-                        t = lst_lst_kfrm.cam_from_world.translation
-                        r = lst_lst_kfrm.cam_from_world.rotation
-                        dict = {
-                            'translation': t,
-                            'rotation': r,
-                            'scale': 1
-                        }
-                        reconstruction.transform(pycolmap.Sim3d(dict))
-                        if self.test: reconstruction_manager.write(self.out_dir)
-
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
-                        lst_kfrm = reconstruction.image(image_id=keyframe_id)
-                        new_kfrm = reconstruction.image(image_id=keyframe_id+1)
-
-                        self.check_stereo(new_kfrm, lst_kfrm)
-                        self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
-
-                        baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                        s = baseline/self.baseline
-                        delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
-
-                        delta_t = lst_kfrm.projection_center()/s  # Output2
-                        cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
-                        cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                        norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        out_file.write(f"{lst_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+                    #elif self.n_cameras == 2:
+                    #    # Report the transformation on the lst_frm
+                    #    lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
+                    #    t = lst_lst_kfrm.cam_from_world.translation
+                    #    r = lst_lst_kfrm.cam_from_world.rotation
+                    #    dict = {
+                    #        'translation': t,
+                    #        'rotation': r,
+                    #        'scale': 1
+                    #    }
+                    #    reconstruction.transform(pycolmap.Sim3d(dict))
+                    #    if self.test: reconstruction_manager.write(self.out_dir)
+#
+                    #    lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
+                    #    lst_kfrm = reconstruction.image(image_id=keyframe_id)
+                    #    new_kfrm = reconstruction.image(image_id=keyframe_id+1)
+#
+                    #    self.check_stereo(new_kfrm, lst_kfrm)
+                    #    self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
+#
+                    #    baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
+                    #    s = baseline/self.baseline
+                    #    delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
+#
+                    #    delta_t = lst_kfrm.projection_center()/s  # Output2
+                    #    cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
+                    #    cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
+                    #    norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                    #    out_file.write(f"{lst_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
 
                     else:
                         ref_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-2])
@@ -449,9 +455,9 @@ class VisualOdometry:
                         cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
                         cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
                         norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-                        #t = -cumulativa_quaternion.rotation_matrix @ cumulative
-                        #out_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion.inverse[0]} {cumulativa_quaternion.inverse[1]} {cumulativa_quaternion.inverse[2]} {cumulativa_quaternion.inverse[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
+                        t = -cumulativa_quaternion.rotation_matrix @ cumulative
+                        out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+                        out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
 
         db.close()
         out_file.close()
