@@ -94,8 +94,8 @@ class LocalFeatures:
                 cv2_img = cv2.imread(str(imgs_dir / img))
                 img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
                 pred = self.model.run(img_rgb)
-                keypoints[img] = torch.from_numpy(pred['keypoints']).to(self.device)
-                descriptors[img] = torch.from_numpy(pred['descriptors']).to(self.device)
+                keypoints[img] = torch.from_numpy(pred['keypoints']).to("cpu")
+                descriptors[img] = torch.from_numpy(pred['descriptors']).to("cpu")
 
         return keypoints, descriptors
 

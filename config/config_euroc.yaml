@@ -1,10 +1,9 @@
 general:
     test: True
     verbose: True
-    n_cameras: 2 # Both monocular and multiview are supported
 
 local_features:
-    features_name: superpoint
+    features_name: aliked # choices=['superpoint', 'aliked']
     superpoint:
         resize_width: 752
         resize_height: 480
@@ -16,6 +15,12 @@ local_features:
         n_limit: 5000
 
 mapping:
+    cameras: ["cam0", "cam1"] # Both monocular and multiview are supported
+    rig_match_rule:
+        - ["cam0", "cam1"]
+    cameras_for_baseline_estim: ["cam0", "cam1"]
+    start_frame: 10
+    baseline: 0.110078
     sliding_window: 10
     max_match_distance: 0.2
     max_keyframes: 10000000

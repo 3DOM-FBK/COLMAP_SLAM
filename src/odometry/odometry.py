@@ -36,6 +36,7 @@ class VisualOdometry:
         logging.verbose_level = 0
         logging.minloglevel = 2
 
+        self.snapshot_count = 0
         self.keyframes_names = {}
         self.keyframes_ids = {}
         self.keyframes_master_ids = []
@@ -119,7 +120,7 @@ class VisualOdometry:
             for pt1, pt2 in zip(mpts1, mpts2):
                 p1 = (int(round(pt1[0])), int(round(pt1[1])))
                 p2 = (int(round(pt2[0])), int(round(pt2[1])))
-                cv2.line(match_img, p1, p2, (0, 255, 0), lineType=16)
+                cv2.line(match_img, p1, p2, (0, 255, 0), 3, lineType=16)
                 cv2.circle(match_img, p2, 1, (0, 0, 255), -1, lineType=16)
         elif method == "pair":
             img1_width = img.shape[1]
@@ -159,11 +160,13 @@ class VisualOdometry:
         median_match_dist = np.median(match_dist)
 
         ## Plot matches
-        #plot = self.make_match_plot(cv2.imread(str(self.images_dir / keyframe_name)), cv2.imread(str(self.images_dir / frame_name)), mpts1, mpts2, method="pair")
-        #plot_resized = cv2.resize(plot, (1920, 1080))
-        #cv2.imshow("Image", plot_resized)
-        #cv2.waitKey(0)
-        #cv2.destroyAllWindows()
+        #plot = self.make_match_plot(cv2.imread(str(self.images_dir / keyframe_name)), cv2.imread(str(self.images_dir / frame_name)), mpts1, mpts2, method="flow")
+        #plot_resized = cv2.resize(plot, (960, 540))
+        #cv2.imwrite(f"/home/threedom/Desktop/VAIPOSA/CARLA_DATASET/03_bis/video/match{self.snapshot_count:06d}.png", plot_resized)
+        #self.snapshot_count += 1
+        ##cv2.imshow("Image", plot_resized)
+        ##cv2.waitKey(0)
+        ##cv2.destroyAllWindows()
         ##quit()
 
         return median_match_dist
@@ -249,8 +252,8 @@ class VisualOdometry:
         options.ba_refine_extra_params = False
         options.extract_colors = False
         options.fix_existing_images = False
-        options.ba_global_max_num_iterations = 12 # Tested with 25 iterations
-        options.ba_global_max_refinements = 1 # Tested with 5 refinements
+        options.ba_global_max_num_iterations = 25 # Tested with 25 iterations
+        options.ba_global_max_refinements = 5 # Tested with 5 refinements
 
         reconstruction_manager = pycolmap.ReconstructionManager()
         controller = pycolmap.IncrementalPipeline(
@@ -263,7 +266,9 @@ class VisualOdometry:
         mapper_options.init_max_error = 100.0
         mapper_options.abs_pose_max_error = 50.0
         mapper_options.abs_pose_min_num_inliers = 8
-        mapper_options.abs_pose_min_inlier_ratio = 0.05
+        mapper_options.abs_pose_min_inlier_ratio = 0.01
+        #mapper_options.filter_max_reproj_error = 1.0
+        #mapper_options.filter_min_tri_angle = 1.5
 
         # Start odometry
         # Keyframe selection based on optical flow
@@ -374,67 +379,42 @@ class VisualOdometry:
 
                     # Extract change in pose
                     if self.n_cameras == 1:
-                        # Report the transformation on the lst_frm
-                        lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
-                        t = lst_kfrm.cam_from_world.translation
-                        r = lst_kfrm.cam_from_world.rotation
-                        dict = {
-                            'translation': t,
-                            'rotation': r,
-                            'scale': 1
-                        }
-                        reconstruction.transform(pycolmap.Sim3d(dict))
+                        try:
+                            # Report the transformation on the lst_frm
+                            lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
+                            t = lst_kfrm.cam_from_world.translation
+                            r = lst_kfrm.cam_from_world.rotation
+                            dict = {
+                                'translation': t,
+                                'rotation': r,
+                                'scale': 1
+                            }
+                            reconstruction.transform(pycolmap.Sim3d(dict))
 
-                        lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-2)
-                        lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
-                        new_kfrm = reconstruction.image(image_id=keyframe_count)
+                            lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-2)
+                            lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
+                            new_kfrm = reconstruction.image(image_id=keyframe_count)
 
-                        if baseline_old == 0:
-                            baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                            s = 1
-                            delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
-                        else:
-                            baseline = np.linalg.norm(lst_kfrm.projection_center() - lst_lst_kfrm.projection_center())
-                            s = baseline / baseline_old
-                            baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                            delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
+                            if baseline_old == 0:
+                                baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
+                                s = 1
+                                delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
+                            else:
+                                baseline = np.linalg.norm(lst_kfrm.projection_center() - lst_lst_kfrm.projection_center())
+                                s = baseline / baseline_old
+                                baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
+                                delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
-                        delta_t = new_kfrm.projection_center()/s  # Output2
-                        cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
-                        cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                        norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        out_file.write(f"{cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]}\n")
+                            delta_t = new_kfrm.projection_center()/s  # Output2
+                            cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
+                            cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
+                            norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                            t = -cumulativa_quaternion.rotation_matrix @ cumulative
+                            out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+                            out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
+                        except:
+                            print('no data')
                     
-                    #elif self.n_cameras == 2:
-                    #    # Report the transformation on the lst_frm
-                    #    lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
-                    #    t = lst_lst_kfrm.cam_from_world.translation
-                    #    r = lst_lst_kfrm.cam_from_world.rotation
-                    #    dict = {
-                    #        'translation': t,
-                    #        'rotation': r,
-                    #        'scale': 1
-                    #    }
-                    #    reconstruction.transform(pycolmap.Sim3d(dict))
-                    #    if self.test: reconstruction_manager.write(self.out_dir)
-#
-                    #    lst_lst_kfrm = reconstruction.image(image_id=keyframe_id-2)
-                    #    lst_kfrm = reconstruction.image(image_id=keyframe_id)
-                    #    new_kfrm = reconstruction.image(image_id=keyframe_id+1)
-#
-                    #    self.check_stereo(new_kfrm, lst_kfrm)
-                    #    self.check_stereo(reconstruction.image(image_id=keyframe_id-1), lst_lst_kfrm)
-#
-                    #    baseline = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
-                    #    s = baseline/self.baseline
-                    #    delta_q = quat(lst_kfrm.cam_from_world.rotation.quat) # Output1
-#
-                    #    delta_t = lst_kfrm.projection_center()/s  # Output2
-                    #    cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
-                    #    cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                    #    norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                    #    out_file.write(f"{lst_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-
                     else:
                         ref_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-2])
                         t = ref_kfrm.cam_from_world.translation
