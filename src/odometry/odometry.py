@@ -65,21 +65,12 @@ class VisualOdometry:
         if self.database_path.exists():
             self.database_path.unlink()
         
-        self.out_file_path = working_dir / "trajectory.txt"
-        if self.out_file_path.exists():
-            self.out_file_path.unlink()
-
-        self.out_images_file_path = working_dir / "images.txt"
-        if self.out_images_file_path.exists():
-            self.out_images_file_path.unlink()
-        
         self.out_dir = working_dir / "out"
         if self.out_dir.exists():
             shutil.rmtree(self.out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         
-        self.images = os.listdir(self.images_dir / "cam0")
-        self.images.sort()
+        self.images = []
 
         self.local_features = LocalFeatures(
             self.width,
@@ -94,7 +85,48 @@ class VisualOdometry:
             raise ValueError("Invalid local features model")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
-    
+
+        # Initialize database and odometry variables
+        self.baseline = 0
+        self.baseline_old = 0
+        self.keyframe_count = 1
+        self.keyframe_id = 1
+        self.cumulative = np.array([0, 0, 0])
+        self.cumulativa_quaternion = Quaternion(np.array([1, 0, 0, 0]))
+        self.db = Database(str(self.database_path))
+
+        # Mapper options
+        self.sliding_window = self.config['mapping']['sliding_window']
+        pycolmap.set_random_seed(0)
+        self.options = pycolmap.IncrementalPipelineOptions()
+        self.options.ba_refine_focal_length = False
+        self.options.ba_refine_principal_point = False
+        self.options.ba_refine_extra_params = False
+        self.options.extract_colors = False
+        self.options.fix_existing_images = False
+        self.options.ba_global_max_num_iterations = 25 # Tested with 25 iterations
+        self.options.ba_global_max_refinements = 5 # Tested with 5 refinements
+        self.options.multiple_models = False
+        #self.options.min_model_size = 2*self.n_cameras
+        self.options.init_image_id1 = 1
+        self.options.init_image_id1 = 2
+
+        self.reconstruction_manager = pycolmap.ReconstructionManager()
+        self.controller = pycolmap.IncrementalPipeline(
+            self.options, str(self.images_dir), str(self.database_path), self.reconstruction_manager
+        )
+
+        self.mapper_options = self.controller.options.get_mapper()
+        self.mapper_options.init_max_forward_motion = 0.99
+        self.mapper_options.init_min_tri_angle = 1.0
+        self.mapper_options.init_max_error = 100.0
+        self.mapper_options.abs_pose_max_error = 50.0
+        self.mapper_options.abs_pose_min_num_inliers = 8
+        self.mapper_options.abs_pose_min_inlier_ratio = 0.01
+        #self.mapper_options.filter_max_reproj_error = 1.0
+        #self.mapper_options.filter_min_tri_angle = 1.5
+
+
     def rig_match_pairs(self, img_name: str) -> list:
         pairs = []
         for pair in self.rig_match_rule:
@@ -182,172 +214,117 @@ class VisualOdometry:
         db.write_image(image, use_image_id=True)
         db.write_keypoints(image_id=image_id, keypoints=keypoints[keyframe_name].cpu().numpy())
 
-    def run(self) -> None:
+    def run(self, image) -> None:
+        self.images.append(image)
 
-        ## Visualize cam0 images
-        #if self.test:
-        #    for image_file in self.images:
-        #        image_path = str(self.images_dir / 'cam0' / image_file)
-        #        image = cv2.imread(image_path)
-        #        cv2.imshow("Image", image)
-        #        cv2.waitKey(1)
-        #    cv2.destroyAllWindows()
+        if len(self.images) == 1:
+            for c, cam in enumerate(self.cameras):
+                camera = Camera(self.camera_config[f"{cam}"])
+                self.db.write_camera(camera)
+                self.keyframe_name = f"{cam}/{image}"
+                camera_id=1+c
+                image_id=1+c
+                new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[self.keyframe_name], batch_size=1)
+                self.keypoints = self.keypoints | new_keypoints
+                self.descriptors = self.descriptors | new_descriptors
+                self.write_keypoints_to_db(self.db, self.keyframe_name, image_id, camera_id, self.keypoints)
+                self.keyframes_names[self.keyframe_name] = image_id
+                self.keyframes_ids[image_id] = self.keyframe_name
+            self.keyframe_name = f"cam0/{image}"
+            self.keyframes_master_ids.append(1)
 
-        ## Rename Carla images
-        #import os
-        #for img in self.images:
-        #    new_img = img[:-5] + ".jpg"
-        #    os.rename(self.images_dir / 'cam0' / img, self.images_dir / 'cam0' / new_img)
-        #for img in self.images:
-        #    new_img = img[:-5] + ".jpg"
-        #    os.rename(self.images_dir / 'cam1' / f"{img[:-4]}R.jpg", self.images_dir / 'cam1' / img)
-        #quit()
-        
-        # Initialize database and odometry variables
-        last_keyframe = None
-        baseline = 0
-        baseline_old = 0
-        keyframe_count = 1
-        keyframe_id = 1
-        cumulative = np.array([0, 0, 0])
-        cumulativa_quaternion = Quaternion(np.array([1, 0, 0, 0]))
-        out_file = open(self.out_file_path, "a")
-        out_images_file = open(self.out_images_file_path, "a")
-        out_file.write("# {new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
+            if self.n_cameras != 1:
+                pairs = self.rig_match_pairs(image)
+                matches = self.match_features(self.keypoints, self.descriptors, pairs)
+                for pair in pairs:
+                    kfrm1, kfrm2 = pair[0], pair[1]
+                    inlier_matches = matches[pair].cpu().numpy()
+                    self.db.write_two_view_geometry(
+                        self.keyframes_names[kfrm1],
+                        self.keyframes_names[kfrm2],
+                        TwoViewGeometry({"inlier_matches": inlier_matches})
+                        )
+            
+            return [[image, None, None, None, None, None, None, None]]
 
-        db = Database(str(self.database_path))
-        for c, cam in enumerate(self.cameras):
-            camera = Camera(self.camera_config[f"{cam}"])
-            db.write_camera(camera)
-            keyframe_name = f"{cam}/{self.images[self.start_frame]}"
-            camera_id=1+c
-            image_id=1+c
-            new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[keyframe_name], batch_size=1)
-            self.keypoints = self.keypoints | new_keypoints
-            self.descriptors = self.descriptors | new_descriptors
-            self.write_keypoints_to_db(db, keyframe_name, image_id, camera_id, self.keypoints)
-            self.keyframes_names[keyframe_name] = image_id
-            self.keyframes_ids[image_id] = keyframe_name
-        keyframe_name = f"cam0/{self.images[self.start_frame]}"
-        self.keyframes_master_ids.append(1)
-
-        if self.n_cameras != 1:
-            pairs = self.rig_match_pairs(self.images[self.start_frame])
-            matches = self.match_features(self.keypoints, self.descriptors, pairs)
-            for pair in pairs:
-                kfrm1, kfrm2 = pair[0], pair[1]
-                inlier_matches = matches[pair].cpu().numpy()
-                db.write_two_view_geometry(
-                    self.keyframes_names[kfrm1],
-                    self.keyframes_names[kfrm2],
-                    TwoViewGeometry({"inlier_matches": inlier_matches})
-                    )
-
-        # Mapper options
-        sliding_window = self.config['mapping']['sliding_window']
-        pycolmap.set_random_seed(0)
-        options = pycolmap.IncrementalPipelineOptions()
-        options.ba_refine_focal_length = False
-        options.ba_refine_principal_point = False
-        options.ba_refine_extra_params = False
-        options.extract_colors = False
-        options.fix_existing_images = False
-        options.ba_global_max_num_iterations = 25 # Tested with 25 iterations
-        options.ba_global_max_refinements = 5 # Tested with 5 refinements
-
-        reconstruction_manager = pycolmap.ReconstructionManager()
-        controller = pycolmap.IncrementalPipeline(
-            options, str(self.images_dir), str(self.database_path), reconstruction_manager
-        )
-
-        mapper_options = controller.options.get_mapper()
-        mapper_options.init_max_forward_motion = 0.99
-        mapper_options.init_min_tri_angle = 1.0
-        mapper_options.init_max_error = 100.0
-        mapper_options.abs_pose_max_error = 50.0
-        mapper_options.abs_pose_min_num_inliers = 8
-        mapper_options.abs_pose_min_inlier_ratio = 0.01
-        #mapper_options.filter_max_reproj_error = 1.0
-        #mapper_options.filter_min_tri_angle = 1.5
-
-        # Start odometry
+        else:
         # Keyframe selection based on optical flow
-        for frame_index in tqdm(range(self.start_frame+1, len(self.images))):
-            frame_name = f"cam0/{self.images[frame_index]}"
+            frame_name = f"cam0/{image}"
             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[frame_name], batch_size=1)
             self.keypoints = self.keypoints | new_keypoints
             self.descriptors = self.descriptors | new_descriptors
-            pairs = [(keyframe_name, frame_name)]
+            pairs = [(self.keyframe_name, frame_name)]
             matches = self.match_features(self.keypoints, self.descriptors, pairs)
-            median_match_dist = self.match_distance(self.keypoints, matches, keyframe_name, frame_name)
+            median_match_dist = self.match_distance(self.keypoints, matches, self.keyframe_name, frame_name)
 
             if median_match_dist < self.config['mapping']['max_match_distance']:
                 del self.keypoints[frame_name]
                 del self.descriptors[frame_name]
-            
+
             # Matching on keyframes on master camera cam0
             if median_match_dist >= self.config['mapping']['max_match_distance']:
-                inlier_matches = matches[(keyframe_name, frame_name)].cpu().numpy()
-                keyframe_count += 1
-                keyframe_id += 1*self.n_cameras
-                keyframe_name = deepcopy(frame_name)
+                inlier_matches = matches[(self.keyframe_name, frame_name)].cpu().numpy()
+                self.keyframe_count += 1
+                self.keyframe_id += 1*self.n_cameras
+                self.keyframe_name = deepcopy(frame_name)
                 camera_id = 1
-                self.write_keypoints_to_db(db, keyframe_name, keyframe_id, camera_id, self.keypoints)
-                db.write_two_view_geometry(
-                    keyframe_id-1*self.n_cameras,
-                    keyframe_id,
+                self.write_keypoints_to_db(self.db, self.keyframe_name, self.keyframe_id, camera_id, self.keypoints)
+                self.db.write_two_view_geometry(
+                    self.keyframe_id-1*self.n_cameras,
+                    self.keyframe_id,
                     TwoViewGeometry({"inlier_matches": inlier_matches})
                     )
-                self.keyframes_names[keyframe_name] = keyframe_id
-                self.keyframes_ids[keyframe_id] = keyframe_name
-                self.keyframes_master_ids.append(keyframe_id)
+                self.keyframes_names[self.keyframe_name] = self.keyframe_id
+                self.keyframes_ids[self.keyframe_id] = self.keyframe_name
+                self.keyframes_master_ids.append(self.keyframe_id)
                 
                 # Match slave cameras
                 if self.n_cameras != 1:
                     for c, cam in enumerate(self.cameras):
                         if c != 0:
-                            slave_name = f"{cam}/{self.images[frame_index]}"
-                            slave_id = keyframe_id+1*c
+                            slave_name = f"{cam}/{image}"
+                            slave_id = self.keyframe_id+1*c
                             self.keyframes_names[slave_name] = slave_id
                             self.keyframes_ids[slave_id] = slave_name
                             camera_id = c+1
                             new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
                             self.keypoints = self.keypoints | new_keypoints
                             self.descriptors = self.descriptors | new_descriptors
-                            self.write_keypoints_to_db(db, slave_name, slave_id, camera_id, self.keypoints)
+                            self.write_keypoints_to_db(self.db, slave_name, slave_id, camera_id, self.keypoints)
 
-                    pairs = self.rig_match_pairs(self.images[frame_index])
+                    pairs = self.rig_match_pairs(image)
                     matches = self.match_features(self.keypoints, self.descriptors, pairs)
                     for pair in pairs:
                         kfrm1, kfrm2 = pair[0], pair[1]
                         inlier_matches = matches[pair].cpu().numpy()
-                        db.write_two_view_geometry(
+                        self.db.write_two_view_geometry(
                             self.keyframes_names[kfrm1],
                             self.keyframes_names[kfrm2],
                             TwoViewGeometry({"inlier_matches": inlier_matches})
                             )
 
                 # Orient new keyframes
-                if keyframe_count > 5 and keyframe_count < sliding_window:
-                    controller.load_database()
+                if self.keyframe_count > 5 and self.keyframe_count < self.sliding_window:
+                    self.controller.load_database()
                     if self.config['mapping']['method'] == 'custom':
-                        reconstruct(controller, mapper_options, keyframe_id, False)
+                        reconstruct(self.controller, self.mapper_options, self.keyframe_id, False)
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
-                        controller.reconstruct(mapper_options)
-                    if self.test: reconstruction_manager.write(self.out_dir)
+                        self.controller.reconstruct(self.mapper_options)
+                    if self.test: self.reconstruction_manager.write(self.out_dir)
+                    return [[image, None, None, None, None, None, None, None]]
 
-                elif keyframe_count > sliding_window-1:
-                    controller.load_database()
+                elif self.keyframe_count > self.sliding_window-1:
+                    self.controller.load_database()
 
                     if self.config['mapping']['method'] == 'custom':
                         # Add new keyframes
                         for c in range(self.n_cameras):
-                            reconstruct(controller, mapper_options, keyframe_id+c, True)
+                            reconstruct(self.controller, self.mapper_options, self.keyframe_id+c, True)
 
                         # Deregister keyframes outside sliding window
-                        reconstruction = reconstruction_manager.get(idx=0)
+                        reconstruction = self.reconstruction_manager.get(idx=0)
                         reg_image_ids = reconstruction.reg_image_ids()
-                        n_images_to_deregister = len(reg_image_ids)-self.n_cameras*sliding_window
+                        n_images_to_deregister = len(reg_image_ids)-self.n_cameras*self.sliding_window
                         for c in range(n_images_to_deregister):
                             reg_image_ids = reconstruction.reg_image_ids()
                             reconstruction.deregister_image(image_id=min(reg_image_ids))
@@ -365,23 +342,24 @@ class VisualOdometry:
                             baseline_norm = np.median(baselines_norm_space)
                             scale_factor = baseline_norm/self.baseline
                         
-                        if self.test: reconstruction_manager.write(self.out_dir)
+                        if self.test: self.reconstruction_manager.write(self.out_dir)
 
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
-                        controller.reconstruct(mapper_options)
-                        reconstruction = reconstruction_manager.get(idx=0)
+                        self.controller.reconstruct(self.mapper_options)
+                        reconstruction = self.reconstruction_manager.get(idx=0)
                         #reconstruction.deregister_image(image_id=keyframe_count+1-sliding_window)
                         #db.delete_inlier_matches(image_id1=keyframe_count+1-sliding_window, image_id2=keyframe_count-sliding_window) # ERROR ON INDEX OF 3D TIE POINTS (?) AFTER DELETING MATCHES IN DB
                     
-                    if keyframe_count == self.config['mapping']['max_keyframes']:
-                        reconstruction_manager.write(self.out_dir)
+                    if self.keyframe_count == self.config['mapping']['max_keyframes']:
+                        self.reconstruction_manager.write(self.out_dir)
+                        print("Max keyframes reached, exiting...")
                         quit()
-
+                    
                     # Extract change in pose
                     if self.n_cameras == 1:
                         try:
                             # Report the transformation on the lst_frm
-                            lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
+                            lst_kfrm = reconstruction.image(image_id=self.keyframe_count-1)
                             t = lst_kfrm.cam_from_world.translation
                             r = lst_kfrm.cam_from_world.rotation
                             dict = {
@@ -391,9 +369,9 @@ class VisualOdometry:
                             }
                             reconstruction.transform(pycolmap.Sim3d(dict))
 
-                            lst_lst_kfrm = reconstruction.image(image_id=keyframe_count-2)
-                            lst_kfrm = reconstruction.image(image_id=keyframe_count-1)
-                            new_kfrm = reconstruction.image(image_id=keyframe_count)
+                            lst_lst_kfrm = reconstruction.image(image_id=self.keyframe_count-2)
+                            lst_kfrm = reconstruction.image(image_id=self.keyframe_count-1)
+                            new_kfrm = reconstruction.image(image_id=self.keyframe_count)
 
                             if baseline_old == 0:
                                 baseline_old = np.linalg.norm(new_kfrm.projection_center() - lst_kfrm.projection_center())
@@ -406,12 +384,10 @@ class VisualOdometry:
                                 delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
                             delta_t = new_kfrm.projection_center()/s  # Output2
-                            cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
-                            cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                            norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                            t = -cumulativa_quaternion.rotation_matrix @ cumulative
-                            out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-                            out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
+                            self.cumulative = deepcopy(self.cumulative) + self.cumulativa_quaternion.inverse.rotate(delta_t)
+                            self.cumulativa_quaternion = delta_q * deepcopy(self.cumulativa_quaternion)
+                            norm = self.cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                            t = -self.cumulativa_quaternion.rotation_matrix @ self.cumulative
                         except:
                             print('no data')
                     
@@ -425,22 +401,22 @@ class VisualOdometry:
                             'scale': 1
                         }
                         reconstruction.transform(pycolmap.Sim3d(dict))
-                        if self.test: reconstruction_manager.write(self.out_dir)
+                        if self.test: self.reconstruction_manager.write(self.out_dir)
 
                         new_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-1])
                         #self.check_stereo(new_kfrm, ref_kfrm)
                         delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
                         delta_t = new_kfrm.projection_center()/scale_factor # Output2
-                        cumulative = deepcopy(cumulative) + cumulativa_quaternion.inverse.rotate(delta_t)
-                        cumulativa_quaternion = delta_q * deepcopy(cumulativa_quaternion)
-                        norm = cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        t = -cumulativa_quaternion.rotation_matrix @ cumulative
-                        out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-                        out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
+                        self.cumulative = deepcopy(self.cumulative) + self.cumulativa_quaternion.inverse.rotate(delta_t)
+                        self.cumulativa_quaternion = delta_q * deepcopy(self.cumulativa_quaternion)
+                        norm = self.cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
+                        t = -self.cumulativa_quaternion.rotation_matrix @ self.cumulative
+                    
+                    return [[image, self.cumulative[0], self.cumulative[1], self.cumulative[2], None, None, None, None]]
 
-        db.close()
-        out_file.close()
-        reconstruction_manager.write(self.out_dir)
+
+        #self.db.close()
+        #self.reconstruction_manager.write(self.out_dir)
         
         
