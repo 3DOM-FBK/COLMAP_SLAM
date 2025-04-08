@@ -1,16 +1,18 @@
 import os
 import cv2
-from tqdm import tqdm
 import yaml
+import shutil
 import argparse
 import numpy as np
 
+from tqdm import tqdm
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
 
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("-i", "--images", type=Path, help="Path to images directory", required=True)
     parser.add_argument("-c", "--config", type=Path, help="Path to general configuration file", required=True)
     parser.add_argument("-a", "--camera", type=Path, help="Path to camera configuration file", required=True)
     parser.add_argument("-w", "--work_dir", type=Path, help="Path to the working directory", required=True)
@@ -26,7 +28,7 @@ def main():
 
     start_frame = config['mapping']['start_frame']
     working_dir = args.work_dir
-    frames_dir = working_dir / "images"
+    frames_dir = args.images
     frames_cam0 = os.listdir(frames_dir / "cam0")
     frames_cam0.sort()
     pose_changes = []
@@ -55,6 +57,8 @@ def main():
 
     for frame_index in tqdm(range(start_frame+1, 200)):
     #for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
+        for c in visual_odometry.cameras:
+            shutil.copyfile(str(frames_dir / c / frames_cam0[frame_index]), str(working_dir / 'images' / c / frames_cam0[frame_index]))
         pose_change = visual_odometry.run(frames_cam0[frame_index])
         pose_changes.append(pose_change)
 

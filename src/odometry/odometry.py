@@ -47,10 +47,17 @@ class VisualOdometry:
         self.verbose = config['general']['verbose']
         self.rig_match_rule = config['mapping']['rig_match_rule']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
+
         self.images_dir = working_dir / "images"
+        if self.images_dir.exists():
+            shutil.rmtree(self.images_dir)
+
         self.test = self.config['general']['test']
         self.cameras = self.config['mapping']['cameras']
         self.cameras = sorted(self.cameras, key=lambda x: int(x[3:]))
+        for c in self.cameras:
+            (self.images_dir / c).mkdir(parents=True, exist_ok=True)
+
         self.n_cameras = len(self.cameras)
         self.cameras_for_baseline_estim = config['mapping']['cameras_for_baseline_estim']
         if "cam0" not in self.cameras_for_baseline_estim:
