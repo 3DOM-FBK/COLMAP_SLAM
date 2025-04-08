@@ -48,16 +48,17 @@ class VisualOdometry:
         self.verbose = config['general']['verbose']
         self.rig_match_rule = config['mapping']['rig_match_rule']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
+        self.N_reinit = 0
 
         self.images_dir = working_dir / "images"
-        if self.images_dir.exists():
-            shutil.rmtree(self.images_dir)
+        #if self.images_dir.exists():
+        #    shutil.rmtree(self.images_dir)
 
         self.test = self.config['general']['test']
         self.cameras = self.config['mapping']['cameras']
         self.cameras = sorted(self.cameras, key=lambda x: int(x[3:]))
-        for c in self.cameras:
-            (self.images_dir / c).mkdir(parents=True, exist_ok=True)
+        #for c in self.cameras:
+        #    (self.images_dir / c).mkdir(parents=True, exist_ok=True)
 
         self.n_cameras = len(self.cameras)
         self.cameras_for_baseline_estim = config['mapping']['cameras_for_baseline_estim']
@@ -221,8 +222,35 @@ class VisualOdometry:
         db.write_image(image, use_image_id=True)
         db.write_keypoints(image_id=image_id, keypoints=keypoints[keyframe_name].cpu().numpy())
 
+    def reinitialize(self) -> None:
+        print('[CSLAM:] Reinitializing..')
+        self.baseline_old = 0
+        self.keyframe_count = 1
+        self.keyframe_id = 1
+        self.t_cumulative = np.array([0, 0, 0])
+        self.q_cumulative = Quaternion(np.array([1, 0, 0, 0]))
+        self.database_path.unlink()
+        self.db = Database(str(self.database_path))
+        shutil.rmtree(self.out_dir)
+        self.out_dir.mkdir(parents=True, exist_ok=True)
+        self.images = []
+        self.N_reinit += 1
+        self.keyframes_names = {}
+        self.keyframes_ids = {}
+        self.keyframes_master_ids = []
+        self.keypoints, self.descriptors = {}, {}
+
+        self.reconstruction_manager = pycolmap.ReconstructionManager()
+        self.controller = pycolmap.IncrementalPipeline(
+            self.options, str(self.images_dir), str(self.database_path), self.reconstruction_manager
+        )
+
     def run(self, image: str, images: List[np.ndarray]) -> None:
         self.images.append(image)
+        
+        if len(self.images) == 30:
+            self.reinitialize()
+            return [[image, None, None, None, None, None]]
 
         if len(self.images) == 1:
             for c, cam in enumerate(self.cameras):
@@ -308,14 +336,22 @@ class VisualOdometry:
                             self.keyframes_names[kfrm2],
                             TwoViewGeometry({"inlier_matches": inlier_matches})
                             )
-
+                
                 # Orient new keyframes
                 if self.keyframe_count > 5 and self.keyframe_count < self.sliding_window:
                     self.controller.load_database()
                     if self.config['mapping']['method'] == 'custom':
-                        reconstruct(self.controller, self.mapper_options, self.keyframe_id, False)
+                        try:
+                            reconstruct(self.controller, self.mapper_options, self.keyframe_id, False)
+                        except:
+                            self.reinitialize()
+                            return [[image, None, None, None, None, None]]
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
-                        self.controller.reconstruct(self.mapper_options)
+                        try:
+                            self.controller.reconstruct(self.mapper_options)
+                        except:
+                            self.reinitialize()
+                            return [[image, None, None, None, None, None]]
                     if self.test: self.reconstruction_manager.write(self.out_dir)
                     return [[image, None, None, None, None, None]]
 
@@ -325,7 +361,11 @@ class VisualOdometry:
                     if self.config['mapping']['method'] == 'custom':
                         # Add new keyframes
                         for c in range(self.n_cameras):
-                            reconstruct(self.controller, self.mapper_options, self.keyframe_id+c, True)
+                            try:
+                                reconstruct(self.controller, self.mapper_options, self.keyframe_id+c, True)
+                            except:
+                                self.reinitialize()
+                                return [[image, None, None, None, None, None]]
 
                         # Deregister keyframes outside sliding window
                         reconstruction = self.reconstruction_manager.get(idx=0)
@@ -351,10 +391,14 @@ class VisualOdometry:
                         if self.test: self.reconstruction_manager.write(self.out_dir)
 
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
-                        self.controller.reconstruct(self.mapper_options)
-                        reconstruction = self.reconstruction_manager.get(idx=0)
-                        #reconstruction.deregister_image(image_id=keyframe_count+1-sliding_window)
-                        #db.delete_inlier_matches(image_id1=keyframe_count+1-sliding_window, image_id2=keyframe_count-sliding_window) # ERROR ON INDEX OF 3D TIE POINTS (?) AFTER DELETING MATCHES IN DB
+                        try:
+                            self.controller.reconstruct(self.mapper_options)
+                            reconstruction = self.reconstruction_manager.get(idx=0)
+                            #reconstruction.deregister_image(image_id=keyframe_count+1-sliding_window)
+                            #db.delete_inlier_matches(image_id1=keyframe_count+1-sliding_window, image_id2=keyframe_count-sliding_window) # ERROR ON INDEX OF 3D TIE POINTS (?) AFTER DELETING MATCHES IN DB
+                        except:
+                            self.reinitialize()
+                            return [[image, None, None, None, None, None]]
                     
                     if self.keyframe_count == self.config['mapping']['max_keyframes']:
                         self.reconstruction_manager.write(self.out_dir)
@@ -398,26 +442,30 @@ class VisualOdometry:
                             print('no data')
                     
                     else:
-                        ref_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-2])
-                        t = ref_kfrm.cam_from_world.translation
-                        r = ref_kfrm.cam_from_world.rotation
-                        dict = {
-                            'translation': t,
-                            'rotation': r,
-                            'scale': 1
-                        }
-                        reconstruction.transform(pycolmap.Sim3d(dict))
-                        if self.test: self.reconstruction_manager.write(self.out_dir)
+                        try:
+                            ref_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-2])
+                            t = ref_kfrm.cam_from_world.translation
+                            r = ref_kfrm.cam_from_world.rotation
+                            dict = {
+                                'translation': t,
+                                'rotation': r,
+                                'scale': 1
+                            }
+                            reconstruction.transform(pycolmap.Sim3d(dict))
+                            if self.test: self.reconstruction_manager.write(self.out_dir)
 
-                        new_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-1])
-                        #self.check_stereo(new_kfrm, ref_kfrm)
-                        delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
+                            new_kfrm = reconstruction.image(image_id=self.keyframes_master_ids[-1])
+                            #self.check_stereo(new_kfrm, ref_kfrm)
+                            delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
-                        delta_t = new_kfrm.projection_center()/scale_factor # Output2
-                        self.t_cumulative = deepcopy(self.t_cumulative) + self.q_cumulative.inverse.rotate(delta_t)
-                        self.q_cumulative = delta_q * deepcopy(self.q_cumulative)
-                        #norm = self.q_cumulative.inverse.rotate(np.array([0, 0, 1]))
-                        #t = -self.q_cumulative.rotation_matrix @ self.t_cumulative
+                            delta_t = new_kfrm.projection_center()/scale_factor # Output2
+                            self.t_cumulative = deepcopy(self.t_cumulative) + self.q_cumulative.inverse.rotate(delta_t)
+                            self.q_cumulative = delta_q * deepcopy(self.q_cumulative)
+                            #norm = self.q_cumulative.inverse.rotate(np.array([0, 0, 1]))
+                            #t = -self.q_cumulative.rotation_matrix @ self.t_cumulative
+                        except:
+                            self.reinitialize()
+                            return [[image, None, None, None, None, None]]
                     
                     return [[image, self.keyframes_names[new_kfrm.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]]
 
