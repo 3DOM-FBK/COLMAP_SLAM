@@ -60,7 +60,6 @@ def main():
         img = frames_cam0[frame_index]
         images = []
         for c in visual_odometry.cameras:
-            #shutil.copyfile(str(frames_dir / c / frames_cam0[frame_index]), str(working_dir / 'images' / c / frames_cam0[frame_index]))
             cv2_img = cv2.imread(str(frames_dir / c / img))
             img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
             images.append(img_rgb)
@@ -78,10 +77,7 @@ def main():
             out_images_file.write(f"{id} {q_cumulative[0]} {q_cumulative[1]} {q_cumulative[2]} {q_cumulative[3]} {t_[0]} {t_[1]} {t_[2]} 1 {image}\n\n")
         except:
             pass
-        #
-        #out_file.write("# {new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-        #out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
-        #out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
+
     out_file.close()
     out_images_file.close()
 
