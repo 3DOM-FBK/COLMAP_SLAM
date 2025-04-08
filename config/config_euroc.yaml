@@ -1,6 +1,6 @@
 general:
-    test: True
-    verbose: True
+    test: False
+    verbose: False
 
 local_features:
     features_name: aliked # choices=['superpoint', 'aliked']

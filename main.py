@@ -3,6 +3,7 @@ import cv2
 from tqdm import tqdm
 import yaml
 import argparse
+import numpy as np
 
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
@@ -52,23 +53,28 @@ def main():
         camera_config = camera_config,
     )
 
-    for frame_index in tqdm(range(start_frame+1, 50)):
+    for frame_index in tqdm(range(start_frame+1, 200)):
     #for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
         pose_change = visual_odometry.run(frames_cam0[frame_index])
         pose_changes.append(pose_change)
 
     out_file = open(out_file_path, "a")
+    out_images_file = open(out_images_file_path, "a")
     for i in range(len(pose_changes)):
         try:
-            out_file.write(f"{pose_changes[i][0][0]} {pose_changes[i][0][1]} {pose_changes[i][0][2]} {pose_changes[i][0][3]}\n")
+            image, id, delta_t, delta_q, t_cumulative, q_cumulative = pose_changes[i][0]
+            norm = q_cumulative.inverse.rotate(np.array([0, 0, 1]))
+            t_ = -q_cumulative.rotation_matrix @ t_cumulative
+            out_file.write(f"{image} {t_cumulative[0]} {t_cumulative[1]} {t_cumulative[2]}\n")
+            out_images_file.write(f"{id} {q_cumulative[0]} {q_cumulative[1]} {q_cumulative[2]} {q_cumulative[3]} {t_[0]} {t_[1]} {t_[2]} 1 {image}\n\n")
         except:
             pass
-        #out_images_file = open(self.out_images_file_path, "a")
+        #
         #out_file.write("# {new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
         #out_file.write(f"{new_kfrm.name} {cumulative[0]} {cumulative[1]} {cumulative[2]} {norm[0]} {norm[1]} {norm[2]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {delta_t[0]} {delta_t[1]} {delta_t[2]} {delta_q[0]} {delta_q[1]} {delta_q[2]} {delta_q[3]}\n")
         #out_images_file.write(f"{self.keyframes_names[new_kfrm.name]} {cumulativa_quaternion[0]} {cumulativa_quaternion[1]} {cumulativa_quaternion[2]} {cumulativa_quaternion[3]} {t[0]} {t[1]} {t[2]} 1 {new_kfrm.name}\n\n")
     out_file.close()
-        #out_images_file.close()
+    out_images_file.close()
 
 if __name__ == "__main__":
     main()

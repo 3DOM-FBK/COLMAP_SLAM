@@ -87,12 +87,11 @@ class VisualOdometry:
         self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
 
         # Initialize database and odometry variables
-        self.baseline = 0
         self.baseline_old = 0
         self.keyframe_count = 1
         self.keyframe_id = 1
-        self.cumulative = np.array([0, 0, 0])
-        self.cumulativa_quaternion = Quaternion(np.array([1, 0, 0, 0]))
+        self.t_cumulative = np.array([0, 0, 0])
+        self.q_cumulative = Quaternion(np.array([1, 0, 0, 0]))
         self.db = Database(str(self.database_path))
 
         # Mapper options
@@ -245,7 +244,7 @@ class VisualOdometry:
                         TwoViewGeometry({"inlier_matches": inlier_matches})
                         )
             
-            return [[image, None, None, None, None, None, None, None]]
+            return [[image, None, None, None, None, None]]
 
         else:
         # Keyframe selection based on optical flow
@@ -311,7 +310,7 @@ class VisualOdometry:
                     elif self.config['mapping']['method'] == 'with_pycolmap_reconstruct':
                         self.controller.reconstruct(self.mapper_options)
                     if self.test: self.reconstruction_manager.write(self.out_dir)
-                    return [[image, None, None, None, None, None, None, None]]
+                    return [[image, None, None, None, None, None]]
 
                 elif self.keyframe_count > self.sliding_window-1:
                     self.controller.load_database()
@@ -384,10 +383,10 @@ class VisualOdometry:
                                 delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
                             delta_t = new_kfrm.projection_center()/s  # Output2
-                            self.cumulative = deepcopy(self.cumulative) + self.cumulativa_quaternion.inverse.rotate(delta_t)
-                            self.cumulativa_quaternion = delta_q * deepcopy(self.cumulativa_quaternion)
-                            norm = self.cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                            t = -self.cumulativa_quaternion.rotation_matrix @ self.cumulative
+                            self.t_cumulative = deepcopy(self.t_cumulative) + self.q_cumulative.inverse.rotate(delta_t)
+                            self.q_cumulative = delta_q * deepcopy(self.q_cumulative)
+                            #norm = self.q_cumulative.inverse.rotate(np.array([0, 0, 1]))
+                            #t = -self.q_cumulative.rotation_matrix @ self.t_cumulative
                         except:
                             print('no data')
                     
@@ -408,12 +407,12 @@ class VisualOdometry:
                         delta_q = quat(new_kfrm.cam_from_world.rotation.quat) # Output1
 
                         delta_t = new_kfrm.projection_center()/scale_factor # Output2
-                        self.cumulative = deepcopy(self.cumulative) + self.cumulativa_quaternion.inverse.rotate(delta_t)
-                        self.cumulativa_quaternion = delta_q * deepcopy(self.cumulativa_quaternion)
-                        norm = self.cumulativa_quaternion.inverse.rotate(np.array([0, 0, 1]))
-                        t = -self.cumulativa_quaternion.rotation_matrix @ self.cumulative
+                        self.t_cumulative = deepcopy(self.t_cumulative) + self.q_cumulative.inverse.rotate(delta_t)
+                        self.q_cumulative = delta_q * deepcopy(self.q_cumulative)
+                        #norm = self.q_cumulative.inverse.rotate(np.array([0, 0, 1]))
+                        #t = -self.q_cumulative.rotation_matrix @ self.t_cumulative
                     
-                    return [[image, self.cumulative[0], self.cumulative[1], self.cumulative[2], None, None, None, None]]
+                    return [[image, self.keyframes_names[new_kfrm.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]]
 
 
         #self.db.close()
