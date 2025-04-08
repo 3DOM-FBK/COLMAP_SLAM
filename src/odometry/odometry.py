@@ -6,6 +6,7 @@ import shutil
 import numpy as np
 import kornia.feature as KF
 
+from typing import List, Tuple
 from pyquaternion import Quaternion
 from copy import deepcopy
 from tqdm import tqdm
@@ -220,7 +221,7 @@ class VisualOdometry:
         db.write_image(image, use_image_id=True)
         db.write_keypoints(image_id=image_id, keypoints=keypoints[keyframe_name].cpu().numpy())
 
-    def run(self, image) -> None:
+    def run(self, image: str, images: List[np.ndarray]) -> None:
         self.images.append(image)
 
         if len(self.images) == 1:
@@ -230,7 +231,7 @@ class VisualOdometry:
                 self.keyframe_name = f"{cam}/{image}"
                 camera_id=1+c
                 image_id=1+c
-                new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[self.keyframe_name], batch_size=1)
+                new_keypoints, new_descriptors = self.local_features.extract(self.keyframe_name, images[c])
                 self.keypoints = self.keypoints | new_keypoints
                 self.descriptors = self.descriptors | new_descriptors
                 self.write_keypoints_to_db(self.db, self.keyframe_name, image_id, camera_id, self.keypoints)
@@ -250,13 +251,12 @@ class VisualOdometry:
                         self.keyframes_names[kfrm2],
                         TwoViewGeometry({"inlier_matches": inlier_matches})
                         )
-            
             return [[image, None, None, None, None, None]]
 
         else:
         # Keyframe selection based on optical flow
             frame_name = f"cam0/{image}"
-            new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[frame_name], batch_size=1)
+            new_keypoints, new_descriptors = self.local_features.extract(frame_name, images[0])
             self.keypoints = self.keypoints | new_keypoints
             self.descriptors = self.descriptors | new_descriptors
             pairs = [(self.keyframe_name, frame_name)]
@@ -293,7 +293,7 @@ class VisualOdometry:
                             self.keyframes_names[slave_name] = slave_id
                             self.keyframes_ids[slave_id] = slave_name
                             camera_id = c+1
-                            new_keypoints, new_descriptors = self.local_features.extract(self.images_dir, image_files=[slave_name], batch_size=1)
+                            new_keypoints, new_descriptors = self.local_features.extract(slave_name, images[c])
                             self.keypoints = self.keypoints | new_keypoints
                             self.descriptors = self.descriptors | new_descriptors
                             self.write_keypoints_to_db(self.db, slave_name, slave_id, camera_id, self.keypoints)

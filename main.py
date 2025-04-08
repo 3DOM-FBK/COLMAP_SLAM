@@ -57,9 +57,14 @@ def main():
 
     for frame_index in tqdm(range(start_frame+1, 200)):
     #for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
+        img = frames_cam0[frame_index]
+        images = []
         for c in visual_odometry.cameras:
-            shutil.copyfile(str(frames_dir / c / frames_cam0[frame_index]), str(working_dir / 'images' / c / frames_cam0[frame_index]))
-        pose_change = visual_odometry.run(frames_cam0[frame_index])
+            #shutil.copyfile(str(frames_dir / c / frames_cam0[frame_index]), str(working_dir / 'images' / c / frames_cam0[frame_index]))
+            cv2_img = cv2.imread(str(frames_dir / c / img))
+            img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
+            images.append(img_rgb)
+        pose_change = visual_odometry.run(frames_cam0[frame_index], images)
         pose_changes.append(pose_change)
 
     out_file = open(out_file_path, "a")

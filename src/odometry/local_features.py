@@ -1,6 +1,7 @@
 import os
 import cv2
 import torch
+import numpy as np
 
 from PIL import Image
 from tqdm import tqdm
@@ -85,23 +86,20 @@ class LocalFeatures:
 
         return keypoints, descriptors
 
-    def aliked(self, imgs_dir: Path, image_files: list, batch_size: int) -> Tuple[dict, dict]:
+    def aliked(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         keypoints = {}
         descriptors = {}
         
         with torch.no_grad():
-            for img in image_files:
-                cv2_img = cv2.imread(str(imgs_dir / img))
-                img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
-                pred = self.model.run(img_rgb)
-                keypoints[img] = torch.from_numpy(pred['keypoints']).to("cpu")
-                descriptors[img] = torch.from_numpy(pred['descriptors']).to("cpu")
+            pred = self.model.run(image)
+            keypoints[img_name] = torch.from_numpy(pred['keypoints']).to("cpu")
+            descriptors[img_name] = torch.from_numpy(pred['descriptors']).to("cpu")
 
         return keypoints, descriptors
 
-    def extract(self, imgs_dir: Path, image_files: list, batch_size: int) -> Tuple[dict, dict]:
+    def extract(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         if self.feature_name == "superpoint":
-            return self.superpoint(imgs_dir, image_files, batch_size)
+            return self.superpoint(img_name, image)
         elif self.feature_name == "aliked":
-            return self.aliked(imgs_dir, image_files, batch_size)
+            return self.aliked(img_name, image)
         
