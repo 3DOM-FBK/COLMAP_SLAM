@@ -55,8 +55,8 @@ def main():
         camera_config = camera_config,
     )
 
-    for frame_index in tqdm(range(start_frame+1, 200)):
-    #for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
+    #for frame_index in tqdm(range(start_frame+1, 1000)):
+    for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
         img = frames_cam0[frame_index]
         images = []
         for c in visual_odometry.cameras:

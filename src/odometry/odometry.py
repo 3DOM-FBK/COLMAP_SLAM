@@ -248,9 +248,9 @@ class VisualOdometry:
     def run(self, image: str, images: List[np.ndarray]) -> None:
         self.images.append(image)
         
-        if len(self.images) == 30:
-            self.reinitialize()
-            return [[image, None, None, None, None, None]]
+        #if len(self.images) == 30:
+        #    self.reinitialize()
+        #    return [[image, None, None, None, None, None]]
 
         if len(self.images) == 1:
             for c, cam in enumerate(self.cameras):
