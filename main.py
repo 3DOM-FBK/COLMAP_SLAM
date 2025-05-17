@@ -26,12 +26,14 @@ def main():
     with open(camera_yaml) as camera_yaml:
         camera_config = yaml.safe_load(camera_yaml)
 
-    start_frame = config['mapping']['start_frame']
+    start_frame, end_frame = config['general']['frames_range']
     working_dir = args.work_dir
     frames_dir = args.images
     frames_cam0 = os.listdir(frames_dir / "cam0")
     frames_cam0.sort()
     pose_changes = []
+    if end_frame == -1:
+        end_frame = len(frames_cam0)
 
     out_file_path = working_dir / "trajectory.txt"
     if out_file_path.exists():
@@ -55,8 +57,7 @@ def main():
         camera_config = camera_config,
     )
 
-    #for frame_index in tqdm(range(start_frame+1, 1000)):
-    for frame_index in tqdm(range(start_frame+1, len(frames_cam0))):
+    for frame_index in tqdm(range(start_frame+1, end_frame)):
         img = frames_cam0[frame_index]
         images = []
         for c in visual_odometry.cameras:
