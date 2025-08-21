@@ -246,12 +246,12 @@ class VisualOdometry:
             self.options, str(self.images_dir), str(self.database_path), self.reconstruction_manager
         )
 
-    def run(self, image: str, images: List[np.ndarray]) -> None:
+    def run(self, image: str, images: List[np.ndarray], reinitialize: bool) -> None:
         self.images.append(image)
-        
-        #if len(self.images) == 30:
-        #    self.reinitialize()
-        #    return [[image, None, None, None, None, None]]
+
+        if reinitialize:
+            self.reinitialize()
+            return [[image, None, None, None, None, None]]
 
         if len(self.images) == 1:
             for c, cam in enumerate(self.cameras):

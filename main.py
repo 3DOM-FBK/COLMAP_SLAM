@@ -9,6 +9,7 @@ from tqdm import tqdm
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
 
+REINIZIALIZE_AFTER = 30  # Reinitialize after this many frames
 
 def main():
     parser = argparse.ArgumentParser()
@@ -64,7 +65,10 @@ def main():
             cv2_img = cv2.imread(str(frames_dir / c / img))
             img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
             images.append(img_rgb)
-        pose_change = visual_odometry.run(frames_cam0[frame_index], images)
+        if frame_index == REINIZIALIZE_AFTER:
+            pose_change = visual_odometry.run(frames_cam0[frame_index], images, reinitialize=True)
+        else:
+            pose_change = visual_odometry.run(frames_cam0[frame_index], images, reinitialize=False)
         pose_changes.append(pose_change)
 
     out_file = open(out_file_path, "a")
