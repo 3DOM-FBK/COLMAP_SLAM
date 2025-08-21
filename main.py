@@ -1,95 +1,89 @@
 import os
 import cv2
 import yaml
-import shutil
 import argparse
 import numpy as np
-
 from tqdm import tqdm
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
-from src.memory import monitor_function_memory, print_memory_stats
 
-REINIZIALIZE_AFTER = -1  # Reinitialize after this many frames, put -1 to disable reinitialization
+REINIZIALIZE_AFTER = -1  # Reinitialize after this many frames, -1 disables
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--images", type=Path, help="Path to images directory", required=True)
-    parser.add_argument("-c", "--config", type=Path, help="Path to general configuration file", required=True)
-    parser.add_argument("-a", "--camera", type=Path, help="Path to camera configuration file", required=True)
-    parser.add_argument("-w", "--work_dir", type=Path, help="Path to the working directory", required=True)
+    parser.add_argument("-i", "--images", type=Path, required=True)
+    parser.add_argument("-c", "--config", type=Path, required=True)
+    parser.add_argument("-a", "--camera", type=Path, required=True)
+    parser.add_argument("-w", "--work_dir", type=Path, required=True)
     args = parser.parse_args()
 
-    config_yaml = args.config
-    with open(config_yaml) as config_yaml:
-        config = yaml.safe_load(config_yaml)
-    
-    camera_yaml = args.camera
-    with open(camera_yaml) as camera_yaml:
-        camera_config = yaml.safe_load(camera_yaml)
+    with open(args.config) as f:
+        config = yaml.safe_load(f)
+    with open(args.camera) as f:
+        camera_config = yaml.safe_load(f)
 
     start_frame, end_frame = config['general']['frames_range']
     working_dir = args.work_dir
     frames_dir = args.images
-    frames_cam0 = os.listdir(frames_dir / "cam0")
-    frames_cam0.sort()
-    pose_changes = []
+    cam0_dir = frames_dir / "cam0"
+
+    # Use sorted Path.glob for better performance
+    frames_cam0 = sorted([f.name for f in cam0_dir.iterdir() if f.is_file()])
     if end_frame == -1:
         end_frame = len(frames_cam0)
 
+    # Prepare output files
     out_file_path = working_dir / "trajectory.txt"
-    if out_file_path.exists():
-        out_file_path.unlink()
-
     out_images_file_path = working_dir / "images.txt"
-    if out_images_file_path.exists():
-        out_images_file_path.unlink()
-
-    ## Visualize cam0 frames
-    #for image_file in frames_cam0:
-    #    image_path = str(frames_dir / 'cam0' / image_file)
-    #    image = cv2.imread(image_path)
-    #    cv2.imshow("Image", image)
-    #    cv2.waitKey(1)
-    #cv2.destroyAllWindows()
+    for path in [out_file_path, out_images_file_path]:
+        if path.exists():
+            path.unlink()
 
     visual_odometry = VisualOdometry(
         working_dir=working_dir,
         config=config,
-        camera_config = camera_config,
+        camera_config=camera_config,
     )
 
-    for frame_index in tqdm(range(start_frame+1, end_frame)):
-        img = frames_cam0[frame_index]
+    pose_changes = []
+
+    # Precompute reinitialization frame set for O(1) check
+    reinit_set = {REINIZIALIZE_AFTER} if REINIZIALIZE_AFTER >= 0 else set()
+
+    for frame_index in tqdm(range(start_frame + 1, end_frame)):
+        img_name = frames_cam0[frame_index]
         images = []
-        for c in visual_odometry.cameras:
-            cv2_img = cv2.imread(str(frames_dir / c / img))
-            img_rgb = cv2.cvtColor(cv2_img, cv2.COLOR_BGR2RGB)
-            images.append(img_rgb)
-        if frame_index == REINIZIALIZE_AFTER:
-            out = visual_odometry.run(frames_cam0[frame_index], images, reinitialize=True)
-        else:
-            out = visual_odometry.run(frames_cam0[frame_index], images, reinitialize=False)
-        pose_change, control_params, log = out[0], out[1], out[2]
+
+        for cam in visual_odometry.cameras:
+            img_path = frames_dir / cam / img_name
+            # Read in color directly, skip conversion if not required
+            cv_img = cv2.imread(str(img_path), cv2.IMREAD_COLOR)
+            images.append(cv_img)
+
+        reinitialize = frame_index in reinit_set
+        pose_change, control_params, log = visual_odometry.run(img_name, images, reinitialize=reinitialize)
         pose_changes.append(pose_change)
-        print("control_params",control_params)
-        print("log", log)
-        #print_memory_stats("After processing frame")
 
-    out_file = open(out_file_path, "a")
-    out_images_file = open(out_images_file_path, "a")
-    for i in range(len(pose_changes)):
+        if config.get('verbose', False):
+            print("control_params", control_params)
+            print("log", log)
+
+    # Write output in bulk to improve speed
+    traj_lines = []
+    img_lines = []
+
+    for changes in pose_changes:
         try:
-            image, id, delta_t, delta_q, t_cumulative, q_cumulative = pose_changes[i][0]
-            norm = q_cumulative.inverse.rotate(np.array([0, 0, 1]))
+            image, id, delta_t, delta_q, t_cumulative, q_cumulative = changes[0]
             t_ = -q_cumulative.rotation_matrix @ t_cumulative
-            out_file.write(f"{image} {t_cumulative[0]} {t_cumulative[1]} {t_cumulative[2]}\n")
-            out_images_file.write(f"{id} {q_cumulative[0]} {q_cumulative[1]} {q_cumulative[2]} {q_cumulative[3]} {t_[0]} {t_[1]} {t_[2]} 1 {image}\n\n")
-        except:
-            pass
+            traj_lines.append(f"{image} {t_cumulative[0]} {t_cumulative[1]} {t_cumulative[2]}\n")
+            img_lines.append(f"{id} {q_cumulative[0]} {q_cumulative[1]} {q_cumulative[2]} {q_cumulative[3]} "
+                             f"{t_[0]} {t_[1]} {t_[2]} 1 {image}\n\n")
+        except Exception:
+            continue
 
-    out_file.close()
-    out_images_file.close()
+    out_file_path.write_text("".join(traj_lines))
+    out_images_file_path.write_text("".join(img_lines))
 
 if __name__ == "__main__":
     main()
