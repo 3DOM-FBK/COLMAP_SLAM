@@ -1,2 +1,3 @@
 #!/bin/bash
-python ./main.py -c ./config/config_euroc.yaml -a ./calibration/calibration_euroc.yaml -w /path/to/work_dir/
+#python ./main.py -c ./config/config_euroc.yaml -a ./calibration/calibration_euroc.yaml -w /path/to/work_dir/
+python ./main.py -c "/media/threedom/Seagate Expansion Drive/3DOM/MMT25_Stelvio/data/config.yaml" -a "/media/threedom/Seagate Expansion Drive/3DOM/MMT25_Stelvio/data/calibration.yaml" -w "/media/threedom/Seagate Expansion Drive/3DOM/MMT25_Stelvio/data/working" -i "/media/threedom/Seagate Expansion Drive/3DOM/MMT25_Stelvio/data/images"
