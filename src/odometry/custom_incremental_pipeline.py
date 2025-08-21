@@ -30,6 +30,7 @@ def write_snapshot(reconstruction, snapshot_path):
 def iterative_global_refinement(options, mapper_options, mapper):
     logging.info("Retriangulation and Global bundle adjustment")
     # The following is equivalent to mapper.iterative_global_refinement(...)
+    t0 = time.time()
     custom_bundle_adjustment.iterative_global_refinement(
         mapper,
         options.ba_global_max_refinements,
@@ -39,6 +40,8 @@ def iterative_global_refinement(options, mapper_options, mapper):
         options.get_triangulation(),
     )
     mapper.filter_images(mapper_options)
+    t1 = time.time()
+    print(f"Global refinement time: {t1-t0:.2f} seconds")
 
 
 def initialize_reconstruction(
@@ -90,7 +93,7 @@ def initialize_reconstruction(
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, next_image_id, sequential=False):
+def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, next_image_id, sequential=False, run_BA=False):
     """Equivalent to IncrementalPipeline.reconstruct_sub_model(...)"""
     # register initial pair
     mapper.begin_reconstruction(reconstruction)
@@ -165,7 +168,7 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
             if controller.check_run_global_refinement(
                 reconstruction, ba_prev_num_reg_images, ba_prev_num_points
             ):
-                iterative_global_refinement(options, mapper_options, mapper)
+                if run_BA: iterative_global_refinement(options, mapper_options, mapper)
                 ba_prev_num_points = reconstruction.num_points3D()
                 ba_prev_num_reg_images = reconstruction.num_reg_images()
             if options.extract_colors:
@@ -185,17 +188,17 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
         if mapper.num_shared_reg_images() >= int(options.max_model_overlap):
             break
         if (not reg_next_success) and prev_reg_next_success:
-            iterative_global_refinement(options, mapper_options, mapper)
+            if run_BA: iterative_global_refinement(options, mapper_options, mapper)
     if (
         reconstruction.num_reg_images() >= 2
         and reconstruction.num_reg_images() != ba_prev_num_reg_images
         and reconstruction.num_points3D != ba_prev_num_points
     ):
-        iterative_global_refinement(options, mapper_options, mapper)
+        if run_BA:iterative_global_refinement(options, mapper_options, mapper)
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct(controller, mapper_options, next_image_id, sequential=False):
+def reconstruct(controller, mapper_options, next_image_id, sequential=False, run_BA=False):
     """Equivalent to IncrementalPipeline.reconstruct(...)"""
     options = controller.options
     reconstruction_manager = controller.reconstruction_manager
@@ -214,7 +217,7 @@ def reconstruct(controller, mapper_options, next_image_id, sequential=False):
             reconstruction_idx = 0
         reconstruction = reconstruction_manager.get(reconstruction_idx)
         status = reconstruct_sub_model(
-            controller, mapper, mapper_options, reconstruction, next_image_id, sequential
+            controller, mapper, mapper_options, reconstruction, next_image_id, sequential, run_BA
         )
         # Alternative use
         #status = controller.reconstruct_sub_model(mapper, mapper_options, reconstruction)

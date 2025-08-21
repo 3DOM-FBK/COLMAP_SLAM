@@ -43,12 +43,12 @@ class VisualOdometry:
         self.keyframes_master_ids = []
         self.config = config
         self.camera_config = camera_config
-        self.start_frame = config['mapping']['start_frame']
         self.baseline = config['mapping']['baseline']
         self.verbose = config['general']['verbose']
         self.rig_match_rule = config['mapping']['rig_match_rule']
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.N_reinit = 0
+        self.run_BA = False # Do not change this variable, it is used to control that the BA run only after the last image of stereo rig is added
 
         self.images_dir = working_dir / "images"
         #if self.images_dir.exists():
@@ -85,6 +85,7 @@ class VisualOdometry:
             self.width,
             self.height,
             config['local_features'],
+            self.verbose,
             )
         if config['local_features']['features_name'] == "aliked":
             self.lightglue_model = "aliked"
@@ -131,7 +132,7 @@ class VisualOdometry:
         self.mapper_options.abs_pose_max_error = 50.0
         self.mapper_options.abs_pose_min_num_inliers = 8
         self.mapper_options.abs_pose_min_inlier_ratio = 0.01
-        #self.mapper_options.filter_max_reproj_error = 1.0
+        self.mapper_options.filter_max_reproj_error = 1.5
         #self.mapper_options.filter_min_tri_angle = 1.5
 
 
@@ -283,6 +284,7 @@ class VisualOdometry:
 
         else:
         # Keyframe selection based on optical flow
+            if self.verbose: t0 = time.time()
             frame_name = f"cam0/{image}"
             new_keypoints, new_descriptors = self.local_features.extract(frame_name, images[0])
             self.keypoints = self.keypoints | new_keypoints
@@ -336,13 +338,17 @@ class VisualOdometry:
                             self.keyframes_names[kfrm2],
                             TwoViewGeometry({"inlier_matches": inlier_matches})
                             )
+                if self.verbose:
+                    t1 = time.time()
+                    print(f"[CSLAM] Matching time {t1-t0:.2f} seconds")
                 
                 # Orient new keyframes
+                if self.verbose: t0 = time.time()
                 if self.keyframe_count > 5 and self.keyframe_count < self.sliding_window:
                     self.controller.load_database()
                     if self.config['mapping']['method'] == 'custom':
                         try:
-                            reconstruct(self.controller, self.mapper_options, self.keyframe_id, False)
+                            reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True)
                         except:
                             self.reinitialize()
                             return [[image, None, None, None, None, None]]
@@ -362,8 +368,15 @@ class VisualOdometry:
                         # Add new keyframes
                         for c in range(self.n_cameras):
                             try:
-                                reconstruct(self.controller, self.mapper_options, self.keyframe_id+c, True)
+                                if c == self.n_cameras-1: self.run_BA = True
+                                if self.verbose: tt0 = time.time()
+                                reconstruct(self.controller, self.mapper_options, self.keyframe_id+c, True, run_BA=self.run_BA)
+                                if self.verbose: 
+                                    tt1 = time.time()
+                                    print('[CSLAM] Time for reconstrut:', tt1-tt0)
+                                self.run_BA = False
                             except:
+                                if self.verbose: print('[CSLAM] Error in keyframe orientation')
                                 self.reinitialize()
                                 return [[image, None, None, None, None, None]]
 
@@ -405,7 +418,12 @@ class VisualOdometry:
                         print("Max keyframes reached, exiting...")
                         quit()
                     
+                    if self.verbose:
+                        t1 = time.time()
+                        print(f"[CSLAM] Orientation time {t1-t0:.2f} seconds")
+                    
                     # Extract change in pose
+                    if self.verbose: t0 = time.time()
                     if self.n_cameras == 1:
                         try:
                             # Report the transformation on the lst_frm
@@ -464,8 +482,14 @@ class VisualOdometry:
                             #norm = self.q_cumulative.inverse.rotate(np.array([0, 0, 1]))
                             #t = -self.q_cumulative.rotation_matrix @ self.t_cumulative
                         except:
+                            if self.verbose: print('[CSLAM] Error in estimate change pose')
                             self.reinitialize()
                             return [[image, None, None, None, None, None]]
+                    
+                    if self.verbose:
+                        t1 = time.time()
+                        print(f"[CSLAM] Estimate change pose time {t1-t0:.2f} seconds")
+                        print(f"[CSLAM] delta_t {delta_t}, delta_q [{delta_q}]")
                     
                     return [[image, self.keyframes_names[new_kfrm.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]]
 
