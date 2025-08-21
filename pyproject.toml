@@ -1,0 +1,76 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "COLMAP_SLAM"
+description = "COLMAP_SLAM is a Visual-SLAM based on pycolmap."
+version = "1.0.0"
+readme = "README.md"
+authors = [
+  { name = "Luca Morelli", email = "lmorelli@fbk.eu" },
+]
+requires-python = ">=3.9"
+keywords = [
+  "image-matching",
+  "deep-learning",
+  "local-features",
+  "visual-slam",
+  "sfm",
+]
+
+dependencies = [
+  "numpy",
+  "pyyaml",
+  "tqdm",
+  "pyquaternion",
+  "transformers",
+  "torch",
+  "torchvision",
+  "opencv-python",
+  "opencv-contrib-python",
+  "pydegensac==0.1.3; platform_system=='Windows' and platform_machine=='i386'",
+  "pydegensac==0.1.2; platform_system=='Windows' and platform_machine=='AMD64'",
+  "pydegensac==0.1.2; platform_system=='Linux'",
+  "pydegensac==0.1.2; platform_system=='Darwin'",
+  "kornia>=0.7.2",
+  "pycolmap==3.11.1",
+  "enlighten>=1.14.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "bumpver",
+  "pytest",
+  "mkdocs",
+  "mkdocs-material",
+  "mkdocstrings[python]",
+  "pre-commit",
+]
+
+[project.urls]
+Homepage = "https://github.com/3DOM-FBK/COLMAP_SLAM"
+Documentation = "https://github.com/3DOM-FBK/COLMAP_SLAM"
+Download = "https://github.com/3DOM-FBK/COLMAP_SLAM"
+"Source Code" = "https://github.com/3DOM-FBK/COLMAP_SLAM"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/deep_image_matching"]
+
+[tool.hatch.version]
+path = "src/deep_image_matching/__init__.py"
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+
+[tool.bumpver]
+current_version = "1.0.0"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = false
+push = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = ['current_version = "{version}"', 'version = "{version}"']
+"src/deep_image_matching/__init__.py" = ["{version}"]
