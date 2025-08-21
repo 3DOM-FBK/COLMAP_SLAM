@@ -22,20 +22,31 @@ from pathlib import Path
 #    resized = cv2.resize(img, (612, 512))
 #    cv2.imwrite(str(out_folder / name), resized)
 
-# temp
-input_folder = Path(r"D:\Ahmad_Sordine\originala_data\650-cam0")
-out_folder = Path(r"D:\Ahmad_Sordine\originala_data\fullres\cam0")
-d = {}
-with open(r"D:\Ahmad_Sordine\originala_data\problems\original\keyframes.txt", 'r') as f:
-    lines = f.readlines()
-    for line in lines:
-        original, keyframe = line.strip().split(',', 1)
-        d[Path(original).name] = Path(keyframe).name
+## temp
+#input_folder = Path(r"D:\Ahmad_Sordine\originala_data\650-cam0")
+#out_folder = Path(r"D:\Ahmad_Sordine\originala_data\fullres\cam0")
+#d = {}
+#with open(r"D:\Ahmad_Sordine\originala_data\problems\original\keyframes.txt", 'r') as f:
+#    lines = f.readlines()
+#    for line in lines:
+#        original, keyframe = line.strip().split(',', 1)
+#        d[Path(original).name] = Path(keyframe).name
+#
+#for i,img in enumerate(os.listdir(input_folder)):
+#    _, _, _, name = img.split('_', 3)
+#    index = name[5:-4]
+#    index = int(index)
+#    name = f"{index:06d}.jpg"
+#    if name in list(d.keys()):
+#        shutil.copyfile(str(input_folder / img), str(out_folder / d[name]))
 
-for i,img in enumerate(os.listdir(input_folder)):
-    _, _, _, name = img.split('_', 3)
-    index = name[5:-4]
-    index = int(index)
-    name = f"{index:06d}.jpg"
-    if name in list(d.keys()):
-        shutil.copyfile(str(input_folder / img), str(out_folder / d[name]))
+workdir =  Path(r"/media/threedom/Seagate Expansion Drive/3DOM/MMT25_Vaiposa/half_traffic_nominal/")
+images_dir = workdir / "images"
+images = os.listdir(images_dir)
+for image in images:
+    if image.endswith(".jpg"):
+        name = image.split(".")[0]
+        if name[-1] == "L":
+            shutil.copyfile(str(images_dir / image), str(workdir / "cam0" / (name[:-1] + ".jpg")))
+        if name[-1] == "R":
+            shutil.copyfile(str(images_dir / image), str(workdir / "cam1" / (name[:-1] + ".jpg")))
