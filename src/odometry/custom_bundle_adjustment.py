@@ -12,6 +12,9 @@ from pycolmap import logging
 
 
 def solve_bundle_adjustment(reconstruction, ba_options, ba_config):
+    #print(ba_options); print(ba_config)
+    #ba_options.use_gpu = True
+    #ba_options.min_num_images_gpu_solver = 5
     bundle_adjuster = pycolmap.create_default_bundle_adjuster(
         ba_options, ba_config, reconstruction
     )
