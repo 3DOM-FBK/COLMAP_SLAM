@@ -8,6 +8,7 @@ import numpy as np
 from tqdm import tqdm
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
+from src.memory import monitor_function_memory, print_memory_stats
 
 REINIZIALIZE_AFTER = -1  # Reinitialize after this many frames, put -1 to disable reinitialization
 
@@ -73,6 +74,7 @@ def main():
         pose_changes.append(pose_change)
         print("control_params",control_params)
         print("log", log)
+        #print_memory_stats("After processing frame")
 
     out_file = open(out_file_path, "a")
     out_images_file = open(out_images_file_path, "a")

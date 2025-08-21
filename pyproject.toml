@@ -36,6 +36,7 @@ dependencies = [
   "kornia>=0.7.2",
   "pycolmap==3.11.1",
   "enlighten>=1.14.1",
+  "psutil",
 ]
 
 [project.optional-dependencies]
