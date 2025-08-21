@@ -1,10 +1,10 @@
 general:
     test: False
-    verbose: True
+    log: True
     frames_range: [0, -1] # -1 means all frames
 
 local_features:
-    features_name: aliked # choices=['superpoint', 'aliked']
+    features_name: superpoint # choices=['superpoint', 'aliked']
     resize_width: 1920 # tested with 640
     resize_height: 1080 # tested with 480
     superpoint:
