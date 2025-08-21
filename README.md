@@ -10,6 +10,28 @@ COLMAP_SLAM is a Visual-SLAM based on pycolmap and is mainly intended for the de
 
 If interested in the project please contact us, you are free to join.
 
+## Installation
+For installing colmap-slam, we recommend using [uv](https://docs.astral.sh/uv/) for fast and reliable package management:
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create and activate a virtual environment
+uv venv --python 3.9
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+Then, you can install colmap-slam using uv:
+
+```bash
+uv pip install -e .
+```
+
+This command will install the package in editable mode, allowing you to modify the source code and see changes immediately without needing to reinstall. If you want to use colmap-slam as a non-editable library, you can also install it without the `-e` flag.
+
+This will also install `pycolmap` as a dependency, which is required for running the 3D reconstruction.
+If you have any issues with `pycolmap`, you can manually install it following the official instructions [here](https://colmap.github.io/pycolmap/index.html).
 
 ## Running the code
 
