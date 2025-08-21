@@ -62,7 +62,10 @@ class LocalFeatures:
                 topk = scores.shape[0]
             topk_indices = torch.topk(scores, topk).indices
 
-            kpts = outputs['keypoints'][0][topk_indices]
+            kpts = outputs['keypoints'][0]
+            kpts[:, 0] *= self.size['width']  # Rescale first column (y) by resize height
+            kpts[:, 1] *= self.size['height'] # Rescale second column (x) by resize width
+            kpts = kpts[topk_indices]
             kpts[:, 0] *= self.image_width / self.size['width']
             kpts[:, 1] *= self.image_height / self.size['height']
             keypoints[img_name] = kpts.to("cpu")
