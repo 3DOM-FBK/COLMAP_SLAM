@@ -46,7 +46,7 @@ class LocalFeatures:
 
     def superpoint(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         image = cv2.resize(image, (self.size['width'], self.size['height']))
-        resize_factor = self.size['width'] / self.image_width
+
         if self.verbose: t0 = time.time()
         keypoints = {}
         descriptors = {}
@@ -77,7 +77,7 @@ class LocalFeatures:
 
         if self.verbose==True:
             t1 = time.time()
-            print(f"Feature extraction time: {t1-t0:.2f} seconds")
+            print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
         return keypoints, descriptors
 
@@ -130,7 +130,7 @@ class LocalFeatures:
 
         if self.verbose==True:
             t1 = time.time()
-            print(f"Feature extraction time: {t1-t0:.2f} seconds")
+            print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
         return keypoints, descriptors
 
@@ -148,7 +148,7 @@ class LocalFeatures:
 
         if self.verbose==True:
             t1 = time.time()
-            print(f"Feature extraction time: {t1-t0:.2f} seconds")
+            print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
         return keypoints, descriptors
 
