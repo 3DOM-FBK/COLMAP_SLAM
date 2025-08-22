@@ -1,10 +1,12 @@
 import shutil
 import os
 from pathlib import Path
+import numpy as np
+from PIL import Image
 
 original_images_dir = "/home/threedom/Desktop/github_3dom/COLMAP_SLAM/_DATA/CARLA/images_original"
 output_dir = "/home/threedom/Desktop/github_3dom/COLMAP_SLAM/_DATA/CARLA/images"
-fault_mode = "cam0_repeat"  # Options: "missing", "corrupt", "duplicate", "normal", "cam0_repeat", "cam1_repeat"
+fault_mode = "cam0_repeat_black"  # Options: "missing", "corrupt", "duplicate", "normal", "cam0_repeat", "cam1_repeat", "cam0_repeat_black", "cam1_repeat_black"
 
 # Image range selection
 start_index = 0      # Starting index (inclusive)
@@ -12,7 +14,7 @@ end_index = 50       # Ending index (exclusive, -1 means all images)
 
 # Camera repeat fault configuration
 repeat_start_index = 20    # Index where the specified camera starts repeating images
-repeat_source_index = 15   # Index of the image that will be repeated
+repeat_source_index = 15   # Index of the image that will be repeated (not used for black modes)
 
 # Check if output directory exists and is empty
 if not os.path.exists(output_dir):
@@ -32,6 +34,30 @@ class GenerateData:
         self.repeat_start_index = repeat_start_index
         self.repeat_source_index = repeat_source_index
         self.supported_extensions = {'.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.tif'}
+
+    def get_image_dimensions(self, image_path):
+        """Get dimensions of an image file"""
+        try:
+            with Image.open(image_path) as img:
+                return img.size  # Returns (width, height)
+        except Exception as e:
+            print(f"Warning: Could not read image {image_path}: {e}")
+            return (640, 480)  # Default fallback dimensions
+
+    def create_black_image(self, reference_path, output_path):
+        """Create a black image with the same dimensions as reference image"""
+        try:
+            width, height = self.get_image_dimensions(reference_path)
+            
+            # Create black image
+            black_image = Image.new('RGB', (width, height), (0, 0, 0))
+            
+            # Save with same format as reference
+            black_image.save(output_path)
+            return True
+        except Exception as e:
+            print(f"Error creating black image: {e}")
+            return False
 
     def get_images_by_subfolder(self):
         """Get images organized by subfolder to maintain structure"""
@@ -89,6 +115,11 @@ class GenerateData:
                 raise ValueError(f"repeat_source_index ({self.repeat_source_index}) must be less than repeat_start_index ({self.repeat_start_index})")
             if self.repeat_source_index < self.start_index:
                 raise ValueError(f"repeat_source_index ({self.repeat_source_index}) must be >= start_index ({self.start_index})")
+        
+        # Validate repeat indices for camera black repeat modes
+        elif self.fault_mode in ["cam0_repeat_black", "cam1_repeat_black"]:
+            if self.repeat_start_index >= self.end_index:
+                raise ValueError(f"repeat_start_index ({self.repeat_start_index}) must be less than end_index ({self.end_index})")
 
     def generate(self):
         """Generate test data with various fault modes"""
@@ -136,12 +167,19 @@ class GenerateData:
             print(f"  - Normal images: indices {self.start_index} to {self.repeat_start_index-1}")
             print(f"  - Repeated image: index {self.repeat_source_index} ('{selected_filenames[self.repeat_source_index - self.start_index]}')")
             print(f"  - Repeat starts at: index {self.repeat_start_index}")
+        
+        elif self.fault_mode in ["cam0_repeat_black", "cam1_repeat_black"]:
+            camera_name = "cam0" if self.fault_mode == "cam0_repeat_black" else "cam1"
+            print(f"{camera_name.upper()} black repeat configuration:")
+            print(f"  - Normal images: indices {self.start_index} to {self.repeat_start_index-1}")
+            print(f"  - Black images start at: index {self.repeat_start_index}")
 
         processed_count = 0
         skipped_count = 0
         corrupted_count = 0
         duplicated_count = 0
         repeated_count = 0
+        black_count = 0
 
         # Store the repeat source image path for camera repeat modes
         repeat_source_filename = None
@@ -222,6 +260,58 @@ class GenerateData:
                         shutil.copy(src_path, dst_path)
                         print(f"  {subfolder_name} (normal): {relative_path.name}")
 
+                # Handle cam0_repeat_black fault mode
+                elif self.fault_mode == "cam0_repeat_black":
+                    if subfolder_name == "cam0":
+                        if original_idx < self.repeat_start_index:
+                            # Before repeat start: copy normal image
+                            shutil.copy(src_path, dst_path)
+                            print(f"  cam0 (normal): {relative_path.name}")
+                        else:
+                            # After repeat start: create black image
+                            if self.create_black_image(src_path, dst_path):
+                                print(f"  cam0 (BLACK): {relative_path.name} -> black image")
+                                black_count += 1
+                            else:
+                                print(f"  cam0 (ERROR): Could not create black image, copying original")
+                                shutil.copy(src_path, dst_path)
+                    
+                    elif subfolder_name == "cam1":
+                        # cam1 always gets correct images
+                        shutil.copy(src_path, dst_path)
+                        print(f"  cam1 (normal): {relative_path.name}")
+                    
+                    else:
+                        # Other cameras get normal treatment
+                        shutil.copy(src_path, dst_path)
+                        print(f"  {subfolder_name} (normal): {relative_path.name}")
+
+                # Handle cam1_repeat_black fault mode
+                elif self.fault_mode == "cam1_repeat_black":
+                    if subfolder_name == "cam0":
+                        # cam0 always gets correct images
+                        shutil.copy(src_path, dst_path)
+                        print(f"  cam0 (normal): {relative_path.name}")
+                    
+                    elif subfolder_name == "cam1":
+                        if original_idx < self.repeat_start_index:
+                            # Before repeat start: copy normal image
+                            shutil.copy(src_path, dst_path)
+                            print(f"  cam1 (normal): {relative_path.name}")
+                        else:
+                            # After repeat start: create black image
+                            if self.create_black_image(src_path, dst_path):
+                                print(f"  cam1 (BLACK): {relative_path.name} -> black image")
+                                black_count += 1
+                            else:
+                                print(f"  cam1 (ERROR): Could not create black image, copying original")
+                                shutil.copy(src_path, dst_path)
+                    
+                    else:
+                        # Other cameras get normal treatment
+                        shutil.copy(src_path, dst_path)
+                        print(f"  {subfolder_name} (normal): {relative_path.name}")
+
                 # Handle other fault modes
                 elif self.fault_mode == "missing" and original_idx % 10 == 0:
                     print(f"  Skipping (missing): {relative_path}")
@@ -263,6 +353,9 @@ class GenerateData:
             camera_name = "Cam0" if self.fault_mode == "cam0_repeat" else "Cam1"
             print(f"{camera_name} images repeated: {repeated_count}")
             print(f"Repeated image source: {repeat_source_filename}")
+        elif self.fault_mode in ["cam0_repeat_black", "cam1_repeat_black"]:
+            camera_name = "Cam0" if self.fault_mode == "cam0_repeat_black" else "Cam1"
+            print(f"{camera_name} black images created: {black_count}")
         elif self.fault_mode == "missing":
             print(f"Images skipped (missing): {skipped_count}")
         elif self.fault_mode == "corrupt":
