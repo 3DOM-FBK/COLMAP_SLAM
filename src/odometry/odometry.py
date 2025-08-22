@@ -6,7 +6,7 @@ import shutil
 import numpy as np
 import kornia.feature as KF
 
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Any
 from pyquaternion import Quaternion
 from pathlib import Path
 
@@ -31,7 +31,7 @@ class VisualOdometry:
     - in-place dict updates
     - caching LightGlue LAFs per image
     - reducing repeated DB reloads
-    - minor micro-opts and small bug fixes
+    - comprehensive logging data collection
     """
 
     def __init__(
@@ -56,8 +56,50 @@ class VisualOdometry:
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.N_reinit = 0
         self.run_BA = False  # control BA only after last stereo image is added
-        self.control_params: Dict = {}
-        self.log_data: Dict = {}
+        
+        # Enhanced logging data structure
+        self.log_data: Dict[str, Any] = {
+            'frame_count': 0,
+            'keyframe_count': 0,
+            'total_features_extracted': 0,
+            'total_matches_computed': 0,
+            'reinitializations': 0,
+            'timing': {
+                'feature_extraction_total': 0.0,
+                'feature_matching_total': 0.0,
+                'reconstruction_total': 0.0,
+                'pose_estimation_total': 0.0,
+                'frame_processing_total': 0.0,
+                'database_operations_total': 0.0
+            },
+            'performance': {
+                'avg_features_per_frame': 0.0,
+                'avg_matches_per_pair': 0.0,
+                'avg_frame_processing_time': 0.0,
+                'keyframe_selection_ratio': 0.0
+            },
+            'reconstruction_stats': {
+                'successful_reconstructions': 0,
+                'failed_reconstructions': 0,
+                'sliding_window_operations': 0,
+                'bundle_adjustments': 0
+            },
+            'memory_stats': {
+                'peak_gpu_memory_mb': 0.0,
+                'current_cached_features': 0,
+                'current_cached_lafs': 0
+            },
+            'current_frame': {
+                'frame_name': '',
+                'is_keyframe': False,
+                'num_features': 0,
+                'median_match_distance': 0.0,
+                'processing_time': 0.0,
+                'feature_extraction_time': 0.0,
+                'matching_time': 0.0,
+                'reconstruction_time': 0.0
+            }
+        }
 
         self.images_dir = working_dir / "images"
 
@@ -123,9 +165,6 @@ class VisualOdometry:
         self.options.ba_global_max_num_iterations = 25
         self.options.ba_global_max_refinements = 5
         self.options.multiple_models = False
-        # NOTE: The original set init_image_id1 twice; keeping defaults here
-        # self.options.init_image_id1 = 1
-        # self.options.init_image_id2 = 2
 
         self.reconstruction_manager = pycolmap.ReconstructionManager()
         self.controller = pycolmap.IncrementalPipeline(
@@ -146,6 +185,46 @@ class VisualOdometry:
 
         # for LightGlue: constant scale/orientation LAF base (ones) cached per image len
         self._ones_cache: Dict[int, torch.Tensor] = {}
+
+    def _update_memory_stats(self):
+        """Update memory statistics in log_data"""
+        if torch.cuda.is_available():
+            self.log_data['memory_stats']['peak_gpu_memory_mb'] = max(
+                self.log_data['memory_stats']['peak_gpu_memory_mb'],
+                torch.cuda.max_memory_allocated() / (1024 * 1024)
+            )
+        
+        self.log_data['memory_stats']['current_cached_features'] = len(self.keypoints)
+        self.log_data['memory_stats']['current_cached_lafs'] = len(self.lafs_cache)
+
+    def _update_performance_stats(self):
+        """Update performance statistics in log_data"""
+        frame_count = self.log_data['frame_count']
+        keyframe_count = self.log_data['keyframe_count']
+        
+        if frame_count > 0:
+            self.log_data['performance']['avg_frame_processing_time'] = (
+                self.log_data['timing']['frame_processing_total'] / frame_count
+            )
+            self.log_data['performance']['keyframe_selection_ratio'] = keyframe_count / frame_count
+            
+        if self.log_data['total_features_extracted'] > 0 and frame_count > 0:
+            self.log_data['performance']['avg_features_per_frame'] = (
+                self.log_data['total_features_extracted'] / frame_count
+            )
+
+    def _log_timing(self, operation: str, duration: float):
+        """Log timing for specific operations"""
+        if operation in self.log_data['timing']:
+            self.log_data['timing'][operation] += duration
+        
+        # Also log to current frame
+        if operation == 'feature_extraction':
+            self.log_data['current_frame']['feature_extraction_time'] = duration
+        elif operation == 'feature_matching':
+            self.log_data['current_frame']['matching_time'] = duration
+        elif operation == 'reconstruction':
+            self.log_data['current_frame']['reconstruction_time'] = duration
 
     # -------------------- utils --------------------
     def _laf_from_kps_cached(self, name: str, kps: torch.Tensor) -> torch.Tensor:
@@ -191,6 +270,8 @@ class VisualOdometry:
     @torch.inference_mode()
     def match_features(self, keypoints: Dict[str, torch.Tensor], descriptors: Dict[str, torch.Tensor], pairs: List[Tuple[str, str]]):
         matches = {}
+        total_matches = 0
+        
         for img1, img2 in pairs:
             kps1 = keypoints[img1]
             kps2 = keypoints[img2]
@@ -216,6 +297,13 @@ class VisualOdometry:
 
             dists, idxs = self.lg_matcher(descs1, descs2, lafs1, lafs2, hw1=self.hw_np, hw2=self.hw_np)
             matches[(img1, img2)] = idxs  # keep on device
+            total_matches += len(idxs)
+        
+        # Update logging stats
+        self.log_data['total_matches_computed'] += total_matches
+        if len(pairs) > 0:
+            self.log_data['performance']['avg_matches_per_pair'] = total_matches / len(pairs)
+        
         return matches
 
     @torch.inference_mode()
@@ -227,9 +315,15 @@ class VisualOdometry:
         # Torch median of L2 distances
         match_dist = torch.linalg.norm(mpts1 - mpts2, dim=1)
         median_match_dist = torch.median(match_dist).item()
+        
+        # Log the median match distance
+        self.log_data['current_frame']['median_match_distance'] = median_match_dist
+        
         return float(median_match_dist)
 
     def write_keypoints_to_db(self, db: COLMAPDatabase, keyframe_name: str, image_id: int, camera_id: int, keypoints: Dict[str, torch.Tensor]) -> None:
+        db_start = time.time()
+        
         image = Image(
             name=keyframe_name,
             points2D=ListPoint2D(np.empty((0, 2), dtype=np.float64)),
@@ -240,23 +334,48 @@ class VisualOdometry:
         db.write_image(image, use_image_id=True)
         db.write_keypoints(image_id=image_id, keypoints=keypoints[keyframe_name].detach().cpu().numpy())
         self.db_dirty = True
+        
+        db_time = time.time() - db_start
+        self._log_timing('database_operations_total', db_time)
 
-    def _extract_and_store(self, name: str, img: np.ndarray) -> None:
+    def _extract_and_store(self, name: str, img: np.ndarray) -> int:
+        """Extract and store features, return number of features extracted"""
+        extraction_start = time.time()
+        
         new_kps, new_descs = self.local_features.extract(name, img)
+        
         # Keep tensors on device to avoid later copies
         for k, v in new_kps.items():
             new_kps[k] = v.to(self.device, non_blocking=True)
         for k, v in new_descs.items():
             new_descs[k] = v.to(self.device, non_blocking=True)
+        
         self.keypoints.update(new_kps)
         self.descriptors.update(new_descs)
+        
         # invalidate LAF cache if this name exists
         for k in new_kps.keys():
             self.lafs_cache.pop(k, None)
+        
+        extraction_time = time.time() - extraction_start
+        self._log_timing('feature_extraction_total', extraction_time)
+        self._log_timing('feature_extraction', extraction_time)
+        
+        # Count features and update stats
+        num_features = sum(len(kps) for kps in new_kps.values())
+        self.log_data['total_features_extracted'] += num_features
+        self.log_data['current_frame']['num_features'] = num_features
+        
+        return num_features
 
     def reinitialize(self) -> None:
         if self.log:
             print('[CSLAM:] Reinitializing..')
+        
+        # Update reinitalization count
+        self.log_data['reinitializations'] += 1
+        self.N_reinit += 1
+        
         self.baseline_old = 0.0
         self.keyframe_count = 1
         self.keyframe_id = 1
@@ -275,7 +394,6 @@ class VisualOdometry:
         self.out_dir.mkdir(parents=True, exist_ok=True)
 
         self.images.clear()
-        self.N_reinit += 1
         self.keyframes_names.clear()
         self.keyframes_ids.clear()
         self.keyframes_master_ids.clear()
@@ -291,19 +409,40 @@ class VisualOdometry:
 
     def _maybe_load_db(self):
         if self.db_dirty:
+            db_start = time.time()
             self.controller.load_database()
             self.db_dirty = False
+            db_time = time.time() - db_start
+            self._log_timing('database_operations_total', db_time)
 
     def run(
         self, image: str,
         images: List[np.ndarray],
         reinitialize: bool,
     ):
+        frame_start_time = time.time()
+        
+        # Initialize current frame data
+        self.log_data['current_frame'] = {
+            'frame_name': image,
+            'is_keyframe': False,
+            'num_features': 0,
+            'median_match_distance': 0.0,
+            'processing_time': 0.0,
+            'feature_extraction_time': 0.0,
+            'matching_time': 0.0,
+            'reconstruction_time': 0.0
+        }
+        
         self.images.append(image)
+        self.log_data['frame_count'] += 1
 
         if reinitialize:
             self.reinitialize()
-            return [[image, None, None, None, None, None]], self.control_params, self.log_data
+            frame_time = time.time() - frame_start_time
+            self.log_data['current_frame']['processing_time'] = frame_time
+            self._log_timing('frame_processing_total', frame_time)
+            return [[image, None, None, None, None, None]], self.log_data
 
         if len(self.images) == 1:
             # first batch: register all cameras for the first timestamp
@@ -320,8 +459,11 @@ class VisualOdometry:
 
             self.keyframe_name = f"cam0/{image}"
             self.keyframes_master_ids.append(1)
+            self.log_data['current_frame']['is_keyframe'] = True
+            self.log_data['keyframe_count'] += 1
 
             if self.n_cameras != 1:
+                matching_start = time.time()
                 pairs = self.rig_match_pairs(image)
                 matches = self.match_features(self.keypoints, self.descriptors, pairs)
                 for pair in pairs:
@@ -333,26 +475,48 @@ class VisualOdometry:
                         TwoViewGeometry({"inlier_matches": inlier_matches})
                     )
                 self.db_dirty = True
-            return [[image, None, None, None, None, None]], self.control_params, self.log_data
+                matching_time = time.time() - matching_start
+                self._log_timing('feature_matching_total', matching_time)
+                self._log_timing('feature_matching', matching_time)
+            
+            frame_time = time.time() - frame_start_time
+            self.log_data['current_frame']['processing_time'] = frame_time
+            self._log_timing('frame_processing_total', frame_time)
+            self._update_memory_stats()
+            self._update_performance_stats()
+            
+            return [[image, None, None, None, None, None]], self.log_data
 
         # -------- Keyframe selection based on feature motion --------
-        if self.log:
-            t0 = time.time()
+        matching_start = time.time()
         frame_name = f"cam0/{image}"
         self._extract_and_store(frame_name, images[0])
 
         pairs = [(self.keyframe_name, frame_name)]
         matches = self.match_features(self.keypoints, self.descriptors, pairs)
         median_match_dist = self.match_distance(self.keypoints, matches, self.keyframe_name, frame_name)
+        matching_time = time.time() - matching_start
+        self._log_timing('feature_matching_total', matching_time)
+        self._log_timing('feature_matching', matching_time)
 
         if median_match_dist < self.config['mapping']['max_match_distance']:
             # not a keyframe: free memory of temporary frame
             self.keypoints.pop(frame_name, None)
             self.descriptors.pop(frame_name, None)
             self.lafs_cache.pop(frame_name, None)
-            return [[image, None, None, None, None, None]], self.control_params, self.log_data
+            
+            frame_time = time.time() - frame_start_time
+            self.log_data['current_frame']['processing_time'] = frame_time
+            self._log_timing('frame_processing_total', frame_time)
+            self._update_memory_stats()
+            self._update_performance_stats()
+            
+            return [[image, None, None, None, None, None]], self.log_data
 
         # --- Promote to keyframe on master camera ---
+        self.log_data['current_frame']['is_keyframe'] = True
+        self.log_data['keyframe_count'] += 1
+        
         inlier_matches = matches[(self.keyframe_name, frame_name)].detach().cpu().numpy()
         self.keyframe_count += 1
         self.keyframe_id += 1 * self.n_cameras
@@ -371,6 +535,7 @@ class VisualOdometry:
 
         # --- Match slave cameras ---
         if self.n_cameras != 1:
+            slave_matching_start = time.time()
             for c, cam in enumerate(self.cameras):
                 if c == 0:
                     continue
@@ -393,28 +558,44 @@ class VisualOdometry:
                     TwoViewGeometry({"inlier_matches": inlier_matches})
                 )
             self.db_dirty = True
+            slave_matching_time = time.time() - slave_matching_start
+            self._log_timing('feature_matching_total', slave_matching_time)
 
         if self.log:
-            t1 = time.time()
-            print(f"[CSLAM] Matching time {t1 - t0:.2f} seconds")
+            print(f"[CSLAM] Matching time {matching_time:.2f} seconds")
 
         # --- Orientation / Reconstruction step ---
-        if self.log:
-            t0 = time.time()
+        reconstruction_start = time.time()
 
         if 5 < self.keyframe_count < self.sliding_window:
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
                     reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True)
+                    self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
                 else:
                     self.controller.reconstruct(self.mapper_options)
+                self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
             except Exception:
+                self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                 self.reinitialize()
-                return [[image, None, None, None, None, None]], self.control_params, self.log_data
+                frame_time = time.time() - frame_start_time
+                self.log_data['current_frame']['processing_time'] = frame_time
+                return [[image, None, None, None, None, None]], self.log_data
             if self.test:
                 self.reconstruction_manager.write(self.out_dir)
-            return [[image, None, None, None, None, None]], self.control_params, self.log_data
+            
+            reconstruction_time = time.time() - reconstruction_start
+            self._log_timing('reconstruction_total', reconstruction_time)
+            self._log_timing('reconstruction', reconstruction_time)
+            
+            frame_time = time.time() - frame_start_time
+            self.log_data['current_frame']['processing_time'] = frame_time
+            self._log_timing('frame_processing_total', frame_time)
+            self._update_memory_stats()
+            self._update_performance_stats()
+            
+            return [[image, None, None, None, None, None]], self.log_data
 
         elif self.keyframe_count >= self.sliding_window:
             self._maybe_load_db()
@@ -428,6 +609,8 @@ class VisualOdometry:
                         if self.log:
                             tt0 = time.time()
                         reconstruct(self.controller, self.mapper_options, self.keyframe_id + c, True, run_BA=self.run_BA)
+                        if self.run_BA:
+                            self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
                         if self.log:
                             tt1 = time.time()
                             print('[CSLAM] Time for reconstruct:', tt1 - tt0)
@@ -435,8 +618,11 @@ class VisualOdometry:
                     except Exception:
                         if self.log:
                             print('[CSLAM] Error in keyframe orientation')
+                        self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                         self.reinitialize()
-                        return [[image, None, None, None, None, None]], self.control_params, self.log_data
+                        frame_time = time.time() - frame_start_time
+                        self.log_data['current_frame']['processing_time'] = frame_time
+                        return [[image, None, None, None, None, None]], self.log_data
 
                 # Sliding window: deregister oldest
                 reconstruction = self.reconstruction_manager.get(idx=0)
@@ -445,6 +631,9 @@ class VisualOdometry:
                 for _ in range(max(0, n_to_deregister)):
                     reg_image_ids = reconstruction.reg_image_ids()
                     reconstruction.deregister_image(image_id=min(reg_image_ids))
+                    self.log_data['reconstruction_stats']['sliding_window_operations'] += 1
+
+                self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
 
                 # Scale the reconstruction (stereo rigs)
                 if self.n_cameras != 1:
@@ -467,9 +656,17 @@ class VisualOdometry:
                 try:
                     self.controller.reconstruct(self.mapper_options)
                     reconstruction = self.reconstruction_manager.get(idx=0)
+                    self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
                 except Exception:
+                    self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                     self.reinitialize()
-                    return [[image, None, None, None, None, None]], self.control_params, self.log_data
+                    frame_time = time.time() - frame_start_time
+                    self.log_data['current_frame']['processing_time'] = frame_time
+                    return [[image, None, None, None, None, None]], self.log_data
+
+            reconstruction_time = time.time() - reconstruction_start
+            self._log_timing('reconstruction_total', reconstruction_time)
+            self._log_timing('reconstruction', reconstruction_time)
 
             if self.keyframe_count == self.config['mapping']['max_keyframes']:
                 self.reconstruction_manager.write(self.out_dir)
@@ -477,12 +674,10 @@ class VisualOdometry:
                 raise SystemExit
 
             if self.log:
-                t1 = time.time()
-                print(f"[CSLAM] Orientation time {t1 - t0:.2f} seconds")
+                print(f"[CSLAM] Orientation time {reconstruction_time:.2f} seconds")
 
             # --- Extract change in pose ---
-            if self.log:
-                t0 = time.time()
+            pose_start = time.time()
             try:
                 if self.n_cameras == 1:
                     reconstruction = self.reconstruction_manager.get(idx=0)
@@ -522,18 +717,61 @@ class VisualOdometry:
 
                 self.t_cumulative = self.t_cumulative + self.q_cumulative.inverse.rotate(delta_t)
                 self.q_cumulative = delta_q * self.q_cumulative
+                
+                pose_time = time.time() - pose_start
+                self._log_timing('pose_estimation_total', pose_time)
+                
             except Exception:
                 if self.log:
                     print('[CSLAM] Error in estimate change pose')
                 self.reinitialize()
-                return [[image, None, None, None, None, None]], self.control_params, self.log_data
+                frame_time = time.time() - frame_start_time
+                self.log_data['current_frame']['processing_time'] = frame_time
+                return [[image, None, None, None, None, None]], self.log_data
 
             if self.log:
-                t1 = time.time()
-                print(f"[CSLAM] Estimate change pose time {t1 - t0:.2f} seconds")
+                print(f"[CSLAM] Estimate change pose time {pose_time:.2f} seconds")
                 print(f"[CSLAM] delta_t {delta_t}, delta_q [{delta_q}]")
 
-            return [[image, self.keyframes_names[curr.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]], self.control_params, self.log
+            frame_time = time.time() - frame_start_time
+            self.log_data['current_frame']['processing_time'] = frame_time
+            self._log_timing('frame_processing_total', frame_time)
+            self._update_memory_stats()
+            self._update_performance_stats()
+
+            return [[image, self.keyframes_names[curr.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]], self.log_data
 
         # else path handled above when not promoted to keyframe
-        return [[image, None, None, None, None, None]], self.control_params, self.log_data
+        frame_time = time.time() - frame_start_time
+        self.log_data['current_frame']['processing_time'] = frame_time
+        self._log_timing('frame_processing_total', frame_time)
+        self._update_memory_stats()
+        self._update_performance_stats()
+        
+        return [[image, None, None, None, None, None]], self.log_data
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get a comprehensive performance summary"""
+        return {
+            'frame_statistics': {
+                'total_frames': self.log_data['frame_count'],
+                'total_keyframes': self.log_data['keyframe_count'],
+                'keyframe_ratio': self.log_data['performance']['keyframe_selection_ratio'],
+                'total_reinitializations': self.log_data['reinitializations']
+            },
+            'timing_summary': {
+                'total_processing_time': self.log_data['timing']['frame_processing_total'],
+                'avg_frame_time': self.log_data['performance']['avg_frame_processing_time'],
+                'feature_extraction_total': self.log_data['timing']['feature_extraction_total'],
+                'feature_matching_total': self.log_data['timing']['feature_matching_total'],
+                'reconstruction_total': self.log_data['timing']['reconstruction_total'],
+                'pose_estimation_total': self.log_data['timing']['pose_estimation_total']
+            },
+            'feature_statistics': {
+                'total_features_extracted': self.log_data['total_features_extracted'],
+                'avg_features_per_frame': self.log_data['performance']['avg_features_per_frame'],
+                'total_matches_computed': self.log_data['total_matches_computed']
+            },
+            'reconstruction_statistics': self.log_data['reconstruction_stats'],
+            'memory_statistics': self.log_data['memory_stats']
+        }
