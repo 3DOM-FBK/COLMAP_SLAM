@@ -12,6 +12,7 @@ import enlighten
 import pycolmap
 from pycolmap import logging
 
+DEBUG = False
 
 def extract_colors(image_path, image_id, reconstruction):
     if not reconstruction.extract_colors_for_image(image_id, image_path):
@@ -27,7 +28,7 @@ def write_snapshot(reconstruction, snapshot_path):
     reconstruction.write(path)
 
 
-def iterative_global_refinement(options, mapper_options, mapper):
+def iterative_global_refinement(options, mapper_options, mapper, max_cost_change_px=5.0):
     logging.info("Retriangulation and Global bundle adjustment")
     # The following is equivalent to mapper.iterative_global_refinement(...)
     t0 = time.time()
@@ -38,10 +39,11 @@ def iterative_global_refinement(options, mapper_options, mapper):
         mapper_options,
         options.get_global_bundle_adjustment(),
         options.get_triangulation(),
+        max_cost_change_px=max_cost_change_px,
     )
     mapper.filter_images(mapper_options)
     t1 = time.time()
-    print(f"Global refinement time: {t1-t0:.2f} seconds")
+    if DEBUG: print(f"Global refinement time: {t1-t0:.2f} seconds")
 
 
 def initialize_reconstruction(
@@ -93,7 +95,7 @@ def initialize_reconstruction(
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, next_image_id, sequential=False, run_BA=False):
+def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, next_image_id, sequential=False, run_BA=False, max_cost_change_px=5.0):
     """Equivalent to IncrementalPipeline.reconstruct_sub_model(...)"""
     # register initial pair
     mapper.begin_reconstruction(reconstruction)
@@ -168,7 +170,7 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
             if controller.check_run_global_refinement(
                 reconstruction, ba_prev_num_reg_images, ba_prev_num_points
             ):
-                if run_BA: iterative_global_refinement(options, mapper_options, mapper)
+                if run_BA: iterative_global_refinement(options, mapper_options, mapper, max_cost_change_px)
                 ba_prev_num_points = reconstruction.num_points3D()
                 ba_prev_num_reg_images = reconstruction.num_reg_images()
             if options.extract_colors:
@@ -188,17 +190,17 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
         if mapper.num_shared_reg_images() >= int(options.max_model_overlap):
             break
         if (not reg_next_success) and prev_reg_next_success:
-            if run_BA: iterative_global_refinement(options, mapper_options, mapper)
+            if run_BA: iterative_global_refinement(options, mapper_options, mapper, max_cost_change_px)
     if (
         reconstruction.num_reg_images() >= 2
         and reconstruction.num_reg_images() != ba_prev_num_reg_images
         and reconstruction.num_points3D != ba_prev_num_points
     ):
-        if run_BA:iterative_global_refinement(options, mapper_options, mapper)
+        if run_BA:iterative_global_refinement(options, mapper_options, mapper, max_cost_change_px)
     return pycolmap.IncrementalMapperStatus.SUCCESS
 
 
-def reconstruct(controller, mapper_options, next_image_id, sequential=False, run_BA=False):
+def reconstruct(controller, mapper_options, next_image_id, sequential=False, run_BA=False, max_cost_change_px=5.0):
     """Equivalent to IncrementalPipeline.reconstruct(...)"""
     options = controller.options
     reconstruction_manager = controller.reconstruction_manager
@@ -217,7 +219,7 @@ def reconstruct(controller, mapper_options, next_image_id, sequential=False, run
             reconstruction_idx = 0
         reconstruction = reconstruction_manager.get(reconstruction_idx)
         status = reconstruct_sub_model(
-            controller, mapper, mapper_options, reconstruction, next_image_id, sequential, run_BA
+            controller, mapper, mapper_options, reconstruction, next_image_id, sequential, run_BA, max_cost_change_px
         )
         # Alternative use
         #status = controller.reconstruct_sub_model(mapper, mapper_options, reconstruction)

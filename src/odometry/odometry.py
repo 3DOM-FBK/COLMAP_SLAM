@@ -157,14 +157,15 @@ class VisualOdometry:
         self.sliding_window = self.config['mapping']['sliding_window']
         pycolmap.set_random_seed(0)
         self.options = pycolmap.IncrementalPipelineOptions()
-        self.options.ba_refine_focal_length = False
-        self.options.ba_refine_principal_point = False
-        self.options.ba_refine_extra_params = False
+        self.options.ba_refine_focal_length = config['bundle_adjustment']['refine_focal_length']
+        self.options.ba_refine_principal_point = config['bundle_adjustment']['refine_principal_point']
+        self.options.ba_refine_extra_params = config['bundle_adjustment']['refine_extra_params']
         self.options.extract_colors = False
         self.options.fix_existing_images = False
-        self.options.ba_global_max_num_iterations = 25
-        self.options.ba_global_max_refinements = 5
+        self.options.ba_global_max_num_iterations = config['bundle_adjustment']['global_max_num_iterations']
+        self.options.ba_global_max_refinements = config['bundle_adjustment']['global_max_refinements']
         self.options.multiple_models = False
+        self.max_cost_change_px = config['bundle_adjustment']['max_cost_change_px']
 
         self.reconstruction_manager = pycolmap.ReconstructionManager()
         self.controller = pycolmap.IncrementalPipeline(
@@ -172,13 +173,13 @@ class VisualOdometry:
         )
 
         self.mapper_options = self.controller.options.get_mapper()
-        self.mapper_options.init_max_forward_motion = 0.99
-        self.mapper_options.init_min_tri_angle = 1.0
-        self.mapper_options.init_max_error = 100.0
-        self.mapper_options.abs_pose_max_error = 50.0
-        self.mapper_options.abs_pose_min_num_inliers = 8
-        self.mapper_options.abs_pose_min_inlier_ratio = 0.01
-        self.mapper_options.filter_max_reproj_error = 1.5
+        self.mapper_options.init_max_forward_motion = config['mapping']['init_max_forward_motion']
+        self.mapper_options.init_min_tri_angle = config['mapping']['init_min_tri_angle']
+        self.mapper_options.init_max_error = config['mapping']['init_max_error']
+        self.mapper_options.abs_pose_max_error = config['mapping']['abs_pose_max_error']
+        self.mapper_options.abs_pose_min_num_inliers = config['mapping']['abs_pose_min_num_inliers']
+        self.mapper_options.abs_pose_min_inlier_ratio = config['mapping']['abs_pose_min_inlier_ratio']
+        self.mapper_options.filter_max_reproj_error = config['mapping']['filter_max_reproj_error']
 
         # Precompute image size arrays (avoid realloc in matcher)
         self.hw_np = np.array([self.height, self.width])
@@ -565,7 +566,7 @@ class VisualOdometry:
             self._log_timing('feature_matching_total', slave_matching_time)
 
         if self.log:
-            print(f"[CSLAM] Matching time {matching_time:.2f} seconds")
+            print(f"[CSLAM] Matching time: {matching_time:.2f} seconds")
 
         # --- Orientation / Reconstruction step ---
         reconstruction_start = time.time()
@@ -574,7 +575,7 @@ class VisualOdometry:
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
-                    reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True)
+                    reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True, max_cost_change_px=self.max_cost_change_px)
                     self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
                 else:
                     self.controller.reconstruct(self.mapper_options)
@@ -611,7 +612,7 @@ class VisualOdometry:
                             self.run_BA = True
                         if self.log:
                             tt0 = time.time()
-                        reconstruct(self.controller, self.mapper_options, self.keyframe_id + c, True, run_BA=self.run_BA)
+                        reconstruct(self.controller, self.mapper_options, self.keyframe_id + c, True, run_BA=self.run_BA, max_cost_change_px=self.max_cost_change_px)
                         if self.run_BA:
                             self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
                         if self.log:

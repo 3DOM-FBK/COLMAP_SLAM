@@ -63,10 +63,9 @@ def main():
         reinitialize = frame_index in reinit_set
         pose_change, log = visual_odometry.run(img_name, images, reinitialize=reinitialize)
         pose_changes.append(pose_change)
-        print(log)
 
-        if config.get('verbose', False):
-            print("log", log)
+        if config['general']['log']:
+            print(log)
 
     summary = visual_odometry.get_performance_summary()
     print(summary)

@@ -10,6 +10,7 @@ import copy
 import pycolmap
 from pycolmap import logging
 
+DEBUG = False
 
 def solve_bundle_adjustment(reconstruction, ba_options, ba_config):
     #print(ba_options); print(ba_config)
@@ -75,6 +76,8 @@ def adjust_global_bundle(mapper, mapper_options, ba_options):
     logging.info("Global Bundle Adjustment")
     logging.info(summary.BriefReport())
 
+    return summary.initial_cost - summary.final_cost
+
 
 def iterative_global_refinement(
     mapper,
@@ -84,8 +87,10 @@ def iterative_global_refinement(
     ba_options,
     tri_options,
     normalize_reconstruction=True,
+    max_cost_change_px=5.0,
 ):
     """Equivalent to mapper.iterative_global_refinement(...)"""
+    last_cost_difference_px = float('inf')
     reconstruction = mapper.reconstruction
     mapper.complete_and_merge_tracks(tri_options)
     num_retriangulated_observations = mapper.retriangulate(tri_options)
@@ -95,7 +100,8 @@ def iterative_global_refinement(
     for _ in range(max_num_refinements):
         num_observations = reconstruction.compute_num_observations()
         # mapper.adjust_global_bundle(mapper_options, ba_options)
-        adjust_global_bundle(mapper, mapper_options, ba_options)
+        cost_difference_px = adjust_global_bundle(mapper, mapper_options, ba_options)
+        if DEBUG: print(f"Cost difference (px): {cost_difference_px}")
         if normalize_reconstruction:
             reconstruction.normalize()
         num_changed_observations = mapper.complete_and_merge_tracks(tri_options)
@@ -108,6 +114,14 @@ def iterative_global_refinement(
         logging.verbose(1, f"=> Changed observations: {changed:.6f}")
         if changed < max_refinement_change:
             break
+        differnece_px = last_cost_difference_px - cost_difference_px
+        if DEBUG: print(f"Last cost difference (px): {last_cost_difference_px} Current: {cost_difference_px} Diff: {differnece_px}")
+        if differnece_px < max_cost_change_px:
+            if DEBUG:print("Early stopping")
+            break
+
+        last_cost_difference_px = copy.deepcopy(cost_difference_px)
+
 
 
 def adjust_local_bundle(

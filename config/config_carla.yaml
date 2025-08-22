@@ -1,12 +1,13 @@
 general:
     test: False
-    log: True
-    frames_range: [0, -1] # -1 means all frames
+    log: False
+    frames_range: [0, -1] # -1 means all frames, 50 for tests
+
 
 local_features:
     features_name: superpoint # choices=['superpoint', 'aliked']
-    resize_width: 1920 # tested with 640
-    resize_height: 1080 # tested with 480
+    resize_width: 1920 # tested with 640, full 1920
+    resize_height: 1080 # tested with 480, full 1080
     superpoint:
         do_resize: True
         top_k: 1000
@@ -16,13 +17,30 @@ local_features:
         scores_th: 0.2
         n_limit: 1000
 
+
 mapping:
     cameras: ["cam0", "cam1"] # Both monocular and multiview are supported
     rig_match_rule:
         - ["cam0", "cam1"]
     cameras_for_baseline_estim: ["cam0", "cam1"]
     baseline: 1.40
-    sliding_window: 10
+    sliding_window: 10 # 10 default
     max_match_distance: 5
     max_keyframes: 1000000
     method: "custom" # choices=['with_pycolmap_reconstruct', 'custom']
+    init_max_forward_motion: 0.99
+    init_min_tri_angle: 1.0
+    init_max_error: 100.0
+    abs_pose_max_error: 50.0
+    abs_pose_min_num_inliers: 8
+    abs_pose_min_inlier_ratio: 0.01
+    filter_max_reproj_error: 1.5
+    
+
+bundle_adjustment:
+    max_cost_change_px: 3.0 # For early stopping in BA
+    refine_focal_length: False
+    refine_principal_point: False
+    refine_extra_params: False
+    global_max_num_iterations: 25 # Iterations inside BA
+    global_max_refinements: 10 # 10 or 5 recommended
