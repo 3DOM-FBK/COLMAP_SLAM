@@ -220,7 +220,10 @@ class VisualOdometry:
         
         # Also log to current frame
         if operation == 'feature_extraction':
-            self.log_data['current_frame']['feature_extraction_time'] = duration
+            if self.log_data['current_frame']['feature_extraction_time'] == 0:
+                self.log_data['current_frame']['feature_extraction_time'] = duration
+            else:
+                self.log_data['current_frame']['feature_extraction_time'] += duration
         elif operation == 'feature_matching':
             self.log_data['current_frame']['matching_time'] = duration
         elif operation == 'reconstruction':
