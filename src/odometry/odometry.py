@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import copy
 import torch
 import shutil
 import numpy as np
@@ -346,7 +347,9 @@ class VisualOdometry:
         """Extract and store features, return number of features extracted"""
         extraction_start = time.time()
         
-        new_kps, new_descs = self.local_features.extract(name, img)
+        new_kps, new_descs, reading_images_status = self.local_features.extract(name, img)
+        if not reading_images_status:
+            return 0, reading_images_status
         
         # Keep tensors on device to avoid later copies
         for k, v in new_kps.items():
@@ -370,7 +373,7 @@ class VisualOdometry:
         self.log_data['total_features_extracted'] += num_features
         self.log_data['current_frame']['num_features'] = num_features
         
-        return num_features
+        return num_features, reading_images_status
 
     def reinitialize(self) -> None:
         if self.log:
@@ -428,6 +431,7 @@ class VisualOdometry:
         
         # Initialize current frame data
         self.log_data['current_frame'] = {
+            'status': 'initializing',
             'frame_name': image,
             'is_keyframe': False,
             'num_features': 0,
@@ -435,7 +439,10 @@ class VisualOdometry:
             'processing_time': 0.0,
             'feature_extraction_time': 0.0,
             'matching_time': 0.0,
-            'reconstruction_time': 0.0
+            'reconstruction_time': 0.0,
+            'corrupted_master_image': False,
+            'corrupted_slave_image': False,
+            'not_enough_features_on_master': False,
         }
         
         self.images.append(image)
@@ -448,18 +455,37 @@ class VisualOdometry:
             self._log_timing('frame_processing_total', frame_time)
             return [[image, None, None, None, None, None]], self.log_data
 
-        if len(self.images) == 1:
+        if len(self.keyframes_names.keys()) == 0:
             # first batch: register all cameras for the first timestamp
+            status = []
+            rig_num_features = []
+            rig = {}
             for c, cam in enumerate(self.cameras):
                 camera = Camera(self.camera_config[f"{cam}"])
                 self.db.write_camera(camera)
                 keyframe_name = f"{cam}/{image}"
                 camera_id = 1 + c
                 image_id = 1 + c
-                self._extract_and_store(keyframe_name, images[c])
-                self.write_keypoints_to_db(self.db, keyframe_name, image_id, camera_id, self.keypoints)
-                self.keyframes_names[keyframe_name] = image_id
-                self.keyframes_ids[image_id] = keyframe_name
+                num_features, reading_images_status = self._extract_and_store(keyframe_name, images[c])
+                status.append(reading_images_status)
+                rig_num_features.append(num_features)
+                rig[c] = (keyframe_name, image_id, camera_id)
+
+            # Check if all images were read successfully and have features
+            if not all(status):
+                self.log_data['current_frame']['corrupted_master_image'] = True
+                return [[image, None, None, None, None, None]], self.log_data
+            elif not all(rig_num_features):
+                self.log_data['current_frame']['not_enough_features_on_master'] = True
+                return [[image, None, None, None, None, None]], self.log_data 
+            else:
+                for c, cam in enumerate(self.cameras):
+                    keyframe_name = rig[c][0]
+                    image_id = rig[c][1]
+                    camera_id = rig[c][2]
+                    self.write_keypoints_to_db(self.db, keyframe_name, image_id, camera_id, self.keypoints)
+                    self.keyframes_names[keyframe_name] = image_id
+                    self.keyframes_ids[image_id] = keyframe_name
 
             self.keyframe_name = f"cam0/{image}"
             self.keyframes_master_ids.append(1)
@@ -494,7 +520,13 @@ class VisualOdometry:
         # -------- Keyframe selection based on feature motion --------
         matching_start = time.time()
         frame_name = f"cam0/{image}"
-        self._extract_and_store(frame_name, images[0])
+        num_features, reading_images_status = self._extract_and_store(frame_name, images[0])
+        if not reading_images_status:
+                self.log_data['current_frame']['corrupted_master_image'] = True
+                return [[image, None, None, None, None, None]], self.log_data
+        elif num_features==0:
+            self.log_data['current_frame']['not_enough_features_on_master'] = True
+            return [[image, None, None, None, None, None]], self.log_data 
 
         pairs = [(self.keyframe_name, frame_name)]
         matches = self.match_features(self.keypoints, self.descriptors, pairs)
@@ -548,7 +580,11 @@ class VisualOdometry:
                 self.keyframes_names[slave_name] = slave_id
                 self.keyframes_ids[slave_id] = slave_name
                 camera_id = c + 1
-                self._extract_and_store(slave_name, images[c])
+                num_features, reading_images_status = self._extract_and_store(slave_name, images[c])
+                if not reading_images_status:
+                    self.keypoints[slave_name] = np.empty((0, 2), dtype=np.float32)
+                    self.descriptors[slave_name] = np.empty((0, self.local_features.decriptor_dim), dtype=np.float32)
+                    self.log_data['current_frame']['corrupted_slave_image'] = True
                 self.write_keypoints_to_db(self.db, slave_name, slave_id, camera_id, self.keypoints)
 
             pairs = self.rig_match_pairs(image)
@@ -572,6 +608,7 @@ class VisualOdometry:
         reconstruction_start = time.time()
 
         if 5 < self.keyframe_count < self.sliding_window:
+            self.log_data['current_frame']['status'] = 'reconstruction_initialization'
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
@@ -602,6 +639,7 @@ class VisualOdometry:
             return [[image, None, None, None, None, None]], self.log_data
 
         elif self.keyframe_count >= self.sliding_window:
+            self.log_data['current_frame']['status'] = 'orientation'
             self._maybe_load_db()
 
             if self.config['mapping']['method'] == 'custom':

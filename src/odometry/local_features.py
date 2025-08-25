@@ -11,6 +11,7 @@ from typing import List, Tuple
 from src.thirdparty.ALIKED.nets.aliked import ALIKED
 from transformers import AutoImageProcessor, SuperPointForKeypointDetection
 
+DEBUG = False
 
 class LocalFeatures:
     def __init__(
@@ -33,7 +34,7 @@ class LocalFeatures:
         config_aliked = config_local_features['aliked']
 
         if self.feature_name == "superpoint":
-            self.processor = AutoImageProcessor.from_pretrained("magic-leap-community/superpoint", do_resize=self.config_sp['do_resize'], size=self.size)
+            self.processor = AutoImageProcessor.from_pretrained("magic-leap-community/superpoint", do_resize=self.config_sp['do_resize'], size=self.size, use_fast=True)
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             if self.device == torch.device("cuda"):
                 self.model = SuperPointForKeypointDetection.from_pretrained("magic-leap-community/superpoint").cuda()
@@ -45,7 +46,12 @@ class LocalFeatures:
             self.model = ALIKED(model_name=config_aliked['model_name'], device=self.device, top_k=config_aliked['top_k'], scores_th=config_aliked['scores_th'], n_limit=config_aliked['n_limit'])
 
     def superpoint(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
-        image = cv2.resize(image, (self.size['width'], self.size['height']))
+        reading_image_status = True
+        try:
+            image = cv2.resize(image, (self.size['width'], self.size['height']))
+        except:
+            reading_image_status = False
+            return {}, {}, reading_image_status
 
         if self.verbose: t0 = time.time()
         keypoints = {}
@@ -75,11 +81,11 @@ class LocalFeatures:
             torch.cuda.empty_cache()
 
 
-        if self.verbose==True:
+        if self.verbose==True and DEBUG==True:
             t1 = time.time()
             print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
-        return keypoints, descriptors
+        return keypoints, descriptors, reading_image_status
 
     # Old version of superpoint() working in batches:
     def superpoint_batch(self, imgs_dir: Path, image_files: list, batch_size: int) -> Tuple[dict, dict]:
@@ -128,14 +134,19 @@ class LocalFeatures:
                 del inputs, outputs
                 torch.cuda.empty_cache()
 
-        if self.verbose==True:
+        if self.verbose==True and DEBUG==True:
             t1 = time.time()
             print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
         return keypoints, descriptors
 
     def aliked(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
-        image = cv2.resize(image, (self.size['width'], self.size['height']))
+        reading_image_status = True
+        try:
+            image = cv2.resize(image, (self.size['width'], self.size['height']))
+        except:
+            reading_image_status = False
+            return {}, {}, reading_image_status
         resize_factor = self.size['width'] / self.image_width
         if self.verbose: t0 = time.time()
         keypoints = {}
@@ -146,15 +157,21 @@ class LocalFeatures:
             keypoints[img_name] = torch.from_numpy(pred['keypoints']).to("cpu")/resize_factor
             descriptors[img_name] = torch.from_numpy(pred['descriptors']).to("cpu")
 
-        if self.verbose==True:
+        if self.verbose==True and DEBUG==True:
             t1 = time.time()
             print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
 
-        return keypoints, descriptors
+        return keypoints, descriptors, reading_image_status
 
     def extract(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         if self.feature_name == "superpoint":
             return self.superpoint(img_name, image)
         elif self.feature_name == "aliked":
             return self.aliked(img_name, image)
+    
+    def decriptor_dim(self) -> int:
+        if self.feature_name == "superpoint":
+            return 256
+        elif self.feature_name == "aliked":
+            return 128
         
