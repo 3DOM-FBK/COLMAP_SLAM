@@ -2,6 +2,7 @@ general:
     test: False
     log: False
     frames_range: [0, -1] # -1 means all frames, 50 for tests
+    save_keyframes: False
 
 
 local_features:

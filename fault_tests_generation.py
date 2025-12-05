@@ -6,7 +6,7 @@ from PIL import Image
 
 original_images_dir = "/home/threedom/Desktop/github_3dom/COLMAP_SLAM/_DATA/CARLA/images_original"
 output_dir = "/home/threedom/Desktop/github_3dom/COLMAP_SLAM/_DATA/CARLA/images"
-fault_mode = "cam0_repeat_black"  # Options: "missing", "corrupt", "duplicate", "normal", "cam0_repeat", "cam1_repeat", "cam0_repeat_black", "cam1_repeat_black"
+fault_mode = "cam1_repeat_black"  # Options: "missing", "corrupt", "duplicate", "normal", "cam0_repeat", "cam1_repeat", "cam0_repeat_black", "cam1_repeat_black"
 
 # Image range selection
 start_index = 0      # Starting index (inclusive)
@@ -14,7 +14,7 @@ end_index = 50       # Ending index (exclusive, -1 means all images)
 
 # Camera repeat fault configuration
 repeat_start_index = 20    # Index where the specified camera starts repeating images
-repeat_source_index = 15   # Index of the image that will be repeated (not used for black modes)
+repeat_source_index = 19   # Index of the image that will be repeated (not used for black modes)
 
 # Check if output directory exists and is empty
 if not os.path.exists(output_dir):
