@@ -57,6 +57,7 @@ class VisualOdometry:
         self.height, self.width = camera_config['cam0']['height'], camera_config['cam0']['width']
         self.N_reinit = 0
         self.run_BA = False  # control BA only after last stereo image is added
+        self.current_status = 'initializing'
         
         # Enhanced logging data structure
         self.log_data: Dict[str, Any] = {
@@ -181,6 +182,10 @@ class VisualOdometry:
         self.mapper_options.abs_pose_min_num_inliers = config['mapping']['abs_pose_min_num_inliers']
         self.mapper_options.abs_pose_min_inlier_ratio = config['mapping']['abs_pose_min_inlier_ratio']
         self.mapper_options.filter_max_reproj_error = config['mapping']['filter_max_reproj_error']
+        #self.mapper_options.init_min_num_inliers = config['mapping']['init_min_num_inliers']
+        #self.mapper_options.filter_min_tri_angle = config['mapping']['filter_min_tri_angle']
+        #self.mapper_options.local_ba_min_tri_angle = config['mapping']['local_ba_min_tri_angle']
+        #print(self.mapper_options);quit()
 
         # Precompute image size arrays (avoid realloc in matcher)
         self.hw_np = np.array([self.height, self.width])
@@ -376,6 +381,7 @@ class VisualOdometry:
         return num_features, reading_images_status
 
     def reinitialize(self) -> None:
+        self.current_status = 'initializing'
         if self.log:
             print('[CSLAM:] Reinitializing..')
         
@@ -431,7 +437,7 @@ class VisualOdometry:
         
         # Initialize current frame data
         self.log_data['current_frame'] = {
-            'status': 'initializing',
+            'status': self.current_status,
             'frame_name': image,
             'is_keyframe': False,
             'num_features': 0,
@@ -543,6 +549,7 @@ class VisualOdometry:
             
             frame_time = time.time() - frame_start_time
             self.log_data['current_frame']['processing_time'] = frame_time
+            self.log_data['current_frame']['status'] = self.current_status
             self._log_timing('frame_processing_total', frame_time)
             self._update_memory_stats()
             self._update_performance_stats()
@@ -608,7 +615,7 @@ class VisualOdometry:
         reconstruction_start = time.time()
 
         if 5 < self.keyframe_count < self.sliding_window:
-            self.log_data['current_frame']['status'] = 'reconstruction_initialization'
+            self.current_status = 'reconstruction_initialization'
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
@@ -639,7 +646,7 @@ class VisualOdometry:
             return [[image, None, None, None, None, None]], self.log_data
 
         elif self.keyframe_count >= self.sliding_window:
-            self.log_data['current_frame']['status'] = 'orientation'
+            self.current_status = 'orientation'
             self._maybe_load_db()
 
             if self.config['mapping']['method'] == 'custom':

@@ -50,8 +50,14 @@ def main():
     # Precompute reinitialization frame set for O(1) check
     reinit_set = {REINIZIALIZE_AFTER} if REINIZIALIZE_AFTER >= 0 else set()
 
+    if config['general']['save_keyframes']:
+        keyframes_log = open(working_dir / "keyframes_log.txt", "w")
+
     for frame_index in tqdm(range(start_frame + 1, end_frame)):
-        img_name = frames_cam0[frame_index]
+        try:
+            img_name = frames_cam0[frame_index]
+        except:
+            continue
         images = []
 
         for cam in visual_odometry.cameras:
@@ -65,8 +71,18 @@ def main():
         pose_changes.append(pose_change)
 
         if config['general']['log']:
-            print(log)
+            #print(log)
+            print(f"\033[91mstatus: {log['current_frame']['status']}\033[0m" if log['current_frame']['status'] is False else f"\033[92mstatus: {log['current_frame']['status']}\033[0m")
+            print(f"is_keyframe: {log['current_frame']['is_keyframe']}")
+            print(f"num_features: {log['current_frame']['num_features']}")
+            print(f"corrupted_master_image: {log['current_frame']['corrupted_master_image']}")
+            print(f"corrupted_slave_image: {log['current_frame']['corrupted_slave_image']}")
+            print(f"not_enough_features_on_master: {log['current_frame']['not_enough_features_on_master']}")
 
+        if log['current_frame']['is_keyframe'] and config['general']['save_keyframes']:
+            keyframes_log.write(f"{log['current_frame']['frame_name']}\n")
+
+    keyframes_log.close() if config['general']['save_keyframes'] else None
     summary = visual_odometry.get_performance_summary()
     print(summary)
 
