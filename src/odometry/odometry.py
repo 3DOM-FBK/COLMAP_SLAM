@@ -16,7 +16,8 @@ from src.odometry.db_colmap import COLMAPDatabase
 from src.odometry.custom_incremental_pipeline import reconstruct
 
 import pycolmap
-from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry, logging
+from pycolmap import Database, Camera, Image, Rigid3d, Rotation3d, TwoViewGeometry, logging
+import traceback
 
 
 def quat(colmap_quat: np.ndarray) -> Quaternion:
@@ -152,7 +153,7 @@ class VisualOdometry:
         self.keyframe_id = 1
         self.t_cumulative = np.array([0.0, 0.0, 0.0], dtype=np.float64)
         self.q_cumulative = Quaternion(np.array([1.0, 0.0, 0.0, 0.0]))
-        self.db = Database(str(self.database_path))
+        self.db = Database.open(str(self.database_path))
         self.db_dirty = False  # track when DB has new data not yet loaded into controller
 
         # Mapper options
@@ -163,7 +164,7 @@ class VisualOdometry:
         self.options.ba_refine_principal_point = config['bundle_adjustment']['refine_principal_point']
         self.options.ba_refine_extra_params = config['bundle_adjustment']['refine_extra_params']
         self.options.extract_colors = False
-        self.options.fix_existing_images = False
+        self.options.fix_existing_frames = False
         self.options.ba_global_max_num_iterations = config['bundle_adjustment']['global_max_num_iterations']
         self.options.ba_global_max_refinements = config['bundle_adjustment']['global_max_refinements']
         self.options.multiple_models = False
@@ -182,6 +183,10 @@ class VisualOdometry:
         self.mapper_options.abs_pose_min_num_inliers = config['mapping']['abs_pose_min_num_inliers']
         self.mapper_options.abs_pose_min_inlier_ratio = config['mapping']['abs_pose_min_inlier_ratio']
         self.mapper_options.filter_max_reproj_error = config['mapping']['filter_max_reproj_error']
+        self.mapper_options.abs_pose_max_error = 1000.0
+        self.mapper_options.ba_local_min_tri_angle = 0.1
+        self.controller.options.init_image_id1 = 3
+        self.controller.options.init_image_id2 = 4
         #self.mapper_options.init_min_num_inliers = config['mapping']['init_min_num_inliers']
         #self.mapper_options.filter_min_tri_angle = config['mapping']['filter_min_tri_angle']
         #self.mapper_options.local_ba_min_tri_angle = config['mapping']['local_ba_min_tri_angle']
@@ -336,12 +341,16 @@ class VisualOdometry:
         
         image = Image(
             name=keyframe_name,
-            points2D=ListPoint2D(np.empty((0, 2), dtype=np.float64)),
-            cam_from_world=Rigid3d(rotation=Rotation3d([0, 0, 0, 1]), translation=[0, 0, 0]),
+            points2D=np.empty((0, 2), dtype=np.float64),
             camera_id=camera_id,
-            id=image_id,
+            #id=image_id,
         )
-        db.write_image(image, use_image_id=True)
+        rigid = Rigid3d(rotation=Rotation3d([0, 0, 0, 1]), translation=[0, 0, 0])
+        #pose_matrix = rigid.matrix()  # 4x4 transformation
+        #pose = Pose.from_cam_to_world(pose_matrix)
+        #cam_from_world=Rigid3d(rotation=Rotation3d([0, 0, 0, 1]), translation=[0, 0, 0])
+        #image.pose = rigid
+        db.write_image(image, use_image_id=False)
         db.write_keypoints(image_id=image_id, keypoints=keypoints[keyframe_name].detach().cpu().numpy())
         self.db_dirty = True
         
@@ -619,16 +628,21 @@ class VisualOdometry:
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
-                    reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True, max_cost_change_px=self.max_cost_change_px)
+                    cucu = reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True, max_cost_change_px=self.max_cost_change_px)
                     self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
+                    print("CIAO")
+                    print(cucu);quit()
                 else:
                     self.controller.reconstruct(self.mapper_options)
                 self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
-            except Exception:
+            except Exception as e:
                 self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                 self.reinitialize()
                 frame_time = time.time() - frame_start_time
                 self.log_data['current_frame']['processing_time'] = frame_time
+                if self.log:
+                    print(f"[CSLAM] Error in reconstruction: {str(e)}")
+                    traceback.print_exc()
                 return [[image, None, None, None, None, None]], self.log_data
             if self.test:
                 self.reconstruction_manager.write(self.out_dir)
@@ -664,9 +678,10 @@ class VisualOdometry:
                             tt1 = time.time()
                             print('[CSLAM] Time for reconstruct:', tt1 - tt0)
                         self.run_BA = False
-                    except Exception:
+                    except Exception as e:
                         if self.log:
-                            print('[CSLAM] Error in keyframe orientation')
+                            print('[CSLAM] Error in keyframe orientation:', str(e))
+                            traceback.print_exc()
                         self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                         self.reinitialize()
                         frame_time = time.time() - frame_start_time
@@ -706,11 +721,14 @@ class VisualOdometry:
                     self.controller.reconstruct(self.mapper_options)
                     reconstruction = self.reconstruction_manager.get(idx=0)
                     self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
-                except Exception:
+                except Exception as e:
                     self.log_data['reconstruction_stats']['failed_reconstructions'] += 1
                     self.reinitialize()
                     frame_time = time.time() - frame_start_time
                     self.log_data['current_frame']['processing_time'] = frame_time
+                    if self.log:
+                        print(f"[CSLAM] Error in reconstruction: {str(e)}")
+                        traceback.print_exc()
                     return [[image, None, None, None, None, None]], self.log_data
 
             reconstruction_time = time.time() - reconstruction_start
@@ -754,6 +772,10 @@ class VisualOdometry:
                     ref = reconstruction.image(image_id=self.keyframes_master_ids[-2])
                     t = ref.cam_from_world.translation
                     r = ref.cam_from_world.rotation
+                    print('************************************', t, r)
+                    cov = pycolmap.BACovariance()
+                    aaa = cov.get_cam_cov_from_world(image_id=self.keyframes_master_ids[-2])
+                    print('************************************', aaa)
                     reconstruction.transform(pycolmap.Sim3d({'translation': t, 'rotation': r, 'scale': 1}))
 
                     curr = reconstruction.image(image_id=self.keyframes_master_ids[-1])
@@ -770,12 +792,14 @@ class VisualOdometry:
                 pose_time = time.time() - pose_start
                 self._log_timing('pose_estimation_total', pose_time)
                 
-            except Exception:
+            except Exception as e:
                 if self.log:
-                    print('[CSLAM] Error in estimate change pose')
+                    print('[CSLAM] Error in estimate change pose:', str(e))
+                    traceback.print_exc()
                 self.reinitialize()
                 frame_time = time.time() - frame_start_time
                 self.log_data['current_frame']['processing_time'] = frame_time
+                quit()
                 return [[image, None, None, None, None, None]], self.log_data
 
             if self.log:
