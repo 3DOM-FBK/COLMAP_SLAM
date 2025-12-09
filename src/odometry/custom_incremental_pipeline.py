@@ -60,21 +60,32 @@ def initialize_reconstruction(
         if ret is None:
             logging.info("No good initial image pair found.")
             return pycolmap.IncrementalMapperStatus.NO_INITIAL_PAIR
-        init_pair, two_view_geometry = ret
+        init_pair, init_cam2_from_cam1 = ret
     else:
         if not all(reconstruction.exists_image(i) for i in init_pair):
             logging.info(f"=> Initial image pair {init_pair} does not exist.")
             return pycolmap.IncrementalMapperStatus.BAD_INITIAL_PAIR
-        two_view_geometry = mapper.estimate_initial_two_view_geometry(
+        print(dir(mapper.estimate_initial_two_view_geometry))
+        init_cam2_from_cam1 = mapper.estimate_initial_two_view_geometry(
             mapper_options, *init_pair
         )
-        if two_view_geometry is None:
+        if init_cam2_from_cam1 is None:
             logging.info("Provided pair is insuitable for initialization")
             return pycolmap.IncrementalMapperStatus.BAD_INITIAL_PAIR
     logging.info(f"Initializing with image pair {init_pair}")
-    mapper.register_initial_image_pair(
-        mapper_options, two_view_geometry, *init_pair
+    aaa= mapper.register_initial_image_pair(
+        mapper_options, *init_pair, init_cam2_from_cam1
     )
+    mapper_options.abs_pose_max_error = 1000.0
+    mapper_options.ba_local_min_tri_angle = 0.1
+    mapper_options.ba_global_prune_points_min_coverage_gain = 0.0
+    mapper_options.filter_max_reproj_error = 4.0
+    mapper_options.filter_min_tri_angle = 0.1
+
+    print(mapper_options)
+    print(init_cam2_from_cam1)
+    print(aaa)
+    print('DEBUG');quit()
     logging.info("Global bundle adjustment")
     # The following is equivalent to: mapper.adjust_global_bundle(...)
     custom_bundle_adjustment.adjust_global_bundle(
@@ -82,7 +93,7 @@ def initialize_reconstruction(
     )
     reconstruction.normalize()
     mapper.filter_points(mapper_options)
-    mapper.filter_images(mapper_options)
+    mapper.filter_frames(mapper_options)
 
     # Initial image pair failed to register
     if (
@@ -220,7 +231,7 @@ def reconstruct(controller, mapper_options, next_image_id, sequential=False, run
         reconstruction = reconstruction_manager.get(reconstruction_idx)
         status = reconstruct_sub_model(
             controller, mapper, mapper_options, reconstruction, next_image_id, sequential, run_BA, max_cost_change_px
-        )
+        );print(status)
         # Alternative use
         #status = controller.reconstruct_sub_model(mapper, mapper_options, reconstruction)
         if status == pycolmap.IncrementalMapperStatus.INTERRUPTED:

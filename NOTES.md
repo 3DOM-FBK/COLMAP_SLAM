@@ -1,3 +1,7 @@
+# Dependencies
+pycolmap                 3.11.1
+
+
 # Improving BA
 
 `src/odometry/custom_bundle_adjustment.py`
