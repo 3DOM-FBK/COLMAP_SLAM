@@ -1,17 +1,19 @@
 general:
     test: False
-    log: False
-    frames_range: [0, -1] # -1 means all frames, 50 for tests
+    log: True
+    frames_range: [50, 100] # -1 means all frames, 50 for tests
     save_keyframes: False
 
 
 local_features:
-    features_name: superpoint # choices=['superpoint', 'aliked']
+    features_name: superpoint # choices=['superpoint', 'aliked', 'superpoint_open']
     resize_width: 1920 # tested with 640, full 1920
     resize_height: 1080 # tested with 480, full 1080
+    superpoint_open:
+        top_k: 2000
     superpoint:
         do_resize: True
-        top_k: 1000
+        top_k: 2000
     aliked:
         model_name: "aliked-n32" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
         top_k: 1000
@@ -30,13 +32,16 @@ mapping:
     max_keyframes: 1000000
     method: "custom" # choices=['with_pycolmap_reconstruct', 'custom']
     init_max_forward_motion: 0.99
-    init_min_tri_angle: 1.0
+    init_min_tri_angle: 0.1
     init_max_error: 100.0
+    init_min_num_inliers: 30
     abs_pose_max_error: 50.0
     abs_pose_min_num_inliers: 8
     abs_pose_min_inlier_ratio: 0.01
     filter_max_reproj_error: 1.5
-    
+    filter_min_tri_angle: 0.5
+    local_ba_min_tri_angle: 1.0
+
 
 bundle_adjustment:
     max_cost_change_px: 3.0 # For early stopping in BA

@@ -141,6 +141,8 @@ class VisualOdometry:
             self.lightglue_model = "aliked"
         elif config['local_features']['features_name'] == "superpoint":
             self.lightglue_model = "superpoint"
+        elif config['local_features']['features_name'] == "superpoint_open":
+            self.lightglue_model = "superpoint"
         else:
             raise ValueError("Invalid local features model")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

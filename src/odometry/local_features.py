@@ -9,7 +9,10 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import List, Tuple
 from src.thirdparty.ALIKED.nets.aliked import ALIKED
+#from thirdparty.SuperPoint_open import superpoint_pytorch
 from transformers import AutoImageProcessor, SuperPointForKeypointDetection
+
+from src.thirdparty.SuperPoint_open import superpoint_pytorch
 
 DEBUG = False
 
@@ -31,6 +34,7 @@ class LocalFeatures:
             "width": config_local_features['resize_width'],
         }
         self.config_sp = config_local_features['superpoint']
+        self.config_sp_open = config_local_features['superpoint_open']
         config_aliked = config_local_features['aliked']
 
         if self.feature_name == "superpoint":
@@ -44,6 +48,34 @@ class LocalFeatures:
         
         elif self.feature_name == "aliked":
             self.model = ALIKED(model_name=config_aliked['model_name'], device=self.device, top_k=config_aliked['top_k'], scores_th=config_aliked['scores_th'], n_limit=config_aliked['n_limit'])
+
+        elif self.feature_name == "superpoint_open":
+            if self.device == 'cuda':
+                self.model = superpoint_pytorch.SuperPoint(detection_threshold=0.005, max_num_keypoints=config_local_features['superpoint_open']['top_k'], nms_radius=5).cuda().eval()
+            else:
+                self.model = superpoint_pytorch.SuperPoint(detection_threshold=0.005, max_num_keypoints=config_local_features['superpoint_open']['top_k'], nms_radius=5).eval()
+            state_dict = torch.load('/home/threedom/Desktop/github_3dom/COLMAP_SLAM/src/thirdparty/SuperPoint_open/weights/superpoint_v6_from_tf.pth')
+            self.model.load_state_dict(state_dict)
+            
+            #sp_th = superpoint_pytorch.SuperPoint(detection_threshold=0.005, nms_radius=5).eval()
+            #state_dict = torch.load('/home/threedom/Desktop/github_3dom/COLMAP_SLAM/src/thirdparty/SuperPoint_open/weights/superpoint_v6_from_tf.pth')
+            #sp_th.load_state_dict(state_dict)
+            #print('Config:', sp_th.conf)
+            #image_url = 'https://raw.githubusercontent.com/cvg/Hierarchical-Localization/master/datasets/sacre_coeur/mapping/03903474_1471484089.jpg'
+            #image_path = 'image_sacre_coeur.jpg'
+            #torch.hub.download_url_to_file(image_url, image_path)
+#
+            #image = cv2.imread(image_path).mean(-1) / 255
+            #image = np.pad(image, [(0, int(np.ceil(s/8))*8 - s) for s in image.shape[:2]])
+            #
+            #with torch.no_grad():
+            #    pred_th = sp_th({'image': torch.from_numpy(image[None,None]).float()})
+            #points_th = pred_th['keypoints'][0]
+            #print(points_th.shape)
+            #descriptors_th = pred_th['descriptors']
+            #print(descriptors_th[0].shape)
+            #print('ok')
+            #quit()
 
     def superpoint(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         reading_image_status = True
@@ -163,15 +195,44 @@ class LocalFeatures:
 
         return keypoints, descriptors, reading_image_status
 
+    def superpoint_open(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
+        reading_image_status = True
+        try:
+            image = cv2.resize(image, (self.size['width'], self.size['height']))
+        except:
+            reading_image_status = False
+            return {}, {}, reading_image_status
+        resize_factor = self.size['width'] / self.image_width
+        if self.verbose: t0 = time.time()
+        keypoints = {}
+        descriptors = {}
+        
+        with torch.no_grad():
+            image = image.mean(-1) / 255
+            image = np.pad(image, [(0, int(np.ceil(s/8))*8 - s) for s in image.shape[:2]])
+            pred = self.model({'image': torch.from_numpy(image[None,None]).to(self.device).float()})
+            keypoints[img_name] = pred['keypoints'][0].to("cpu")/resize_factor
+            descriptors[img_name] = pred['descriptors'][0].to("cpu")
+
+        if self.verbose==True and DEBUG==True:
+            t1 = time.time()
+            print(f"[CSLAM] Feature extraction time: {t1-t0:.2f} seconds")
+
+        return keypoints, descriptors, reading_image_status
+
     def extract(self, img_name: str, image: np.ndarray) -> Tuple[dict, dict]:
         if self.feature_name == "superpoint":
             return self.superpoint(img_name, image)
         elif self.feature_name == "aliked":
             return self.aliked(img_name, image)
+        elif self.feature_name == "superpoint_open":
+            return self.superpoint_open(img_name, image)
     
     def decriptor_dim(self) -> int:
         if self.feature_name == "superpoint":
             return 256
         elif self.feature_name == "aliked":
             return 128
+        elif self.feature_name == "superpoint_open":
+            return 256
         
