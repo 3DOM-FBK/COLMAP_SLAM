@@ -184,9 +184,9 @@ class VisualOdometry:
         self.mapper_options.abs_pose_min_inlier_ratio = config['mapping']['abs_pose_min_inlier_ratio']
         self.mapper_options.filter_max_reproj_error = config['mapping']['filter_max_reproj_error']
         self.mapper_options.abs_pose_max_error = 1000.0
-        self.mapper_options.ba_local_min_tri_angle = 0.1
-        self.controller.options.init_image_id1 = 3
-        self.controller.options.init_image_id2 = 4
+        #self.mapper_options.ba_local_min_tri_angle = 0.1
+        self.controller.options.init_image_id1 = 1
+        self.controller.options.init_image_id2 = 2
         #self.mapper_options.init_min_num_inliers = config['mapping']['init_min_num_inliers']
         #self.mapper_options.filter_min_tri_angle = config['mapping']['filter_min_tri_angle']
         #self.mapper_options.local_ba_min_tri_angle = config['mapping']['local_ba_min_tri_angle']
@@ -628,10 +628,8 @@ class VisualOdometry:
             self._maybe_load_db()
             try:
                 if self.config['mapping']['method'] == 'custom':
-                    cucu = reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True, max_cost_change_px=self.max_cost_change_px)
+                    reconstruct(self.controller, self.mapper_options, self.keyframe_id, False, run_BA=True, max_cost_change_px=self.max_cost_change_px)
                     self.log_data['reconstruction_stats']['bundle_adjustments'] += 1
-                    print("CIAO")
-                    print(cucu);quit()
                 else:
                     self.controller.reconstruct(self.mapper_options)
                 self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
@@ -694,7 +692,7 @@ class VisualOdometry:
                 n_to_deregister = len(reg_image_ids) - self.n_cameras * self.sliding_window
                 for _ in range(max(0, n_to_deregister)):
                     reg_image_ids = reconstruction.reg_image_ids()
-                    reconstruction.deregister_image(image_id=min(reg_image_ids))
+                    reconstruction.deregister_frame(frame_id=min(reg_image_ids))
                     self.log_data['reconstruction_stats']['sliding_window_operations'] += 1
 
                 self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
@@ -770,16 +768,12 @@ class VisualOdometry:
                 else:
                     reconstruction = self.reconstruction_manager.get(idx=0)
                     ref = reconstruction.image(image_id=self.keyframes_master_ids[-2])
-                    t = ref.cam_from_world.translation
-                    r = ref.cam_from_world.rotation
-                    print('************************************', t, r)
-                    cov = pycolmap.BACovariance()
-                    aaa = cov.get_cam_cov_from_world(image_id=self.keyframes_master_ids[-2])
-                    print('************************************', aaa)
+                    t = ref.cam_from_world().translation
+                    r = ref.cam_from_world().rotation
                     reconstruction.transform(pycolmap.Sim3d({'translation': t, 'rotation': r, 'scale': 1}))
 
                     curr = reconstruction.image(image_id=self.keyframes_master_ids[-1])
-                    delta_q = quat(curr.cam_from_world.rotation.quat)
+                    delta_q = quat(curr.cam_from_world().rotation.quat)
 
                     # scale_factor computed above (if custom path). If using pycolmap path and scale_factor undefined, default to 1.0
                     if 'scale_factor' not in locals():

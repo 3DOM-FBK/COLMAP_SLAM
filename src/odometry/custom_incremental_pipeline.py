@@ -39,9 +39,9 @@ def iterative_global_refinement(options, mapper_options, mapper, max_cost_change
         mapper_options,
         options.get_global_bundle_adjustment(),
         options.get_triangulation(),
-        max_cost_change_px=max_cost_change_px,
+        #max_cost_change_px=max_cost_change_px,
     )
-    mapper.filter_images(mapper_options)
+    mapper.filter_frames(mapper_options)
     t1 = time.time()
     if DEBUG: print(f"Global refinement time: {t1-t0:.2f} seconds")
 
@@ -52,6 +52,27 @@ def initialize_reconstruction(
     """Equivalent to IncrementalPipeline.initialize_reconstruction(...)"""
     options = controller.options
     init_pair = (options.init_image_id1, options.init_image_id2)
+
+    mapper_options.init_min_num_inliers = 100
+    mapper_options.init_max_error = 4.0
+    mapper_options.init_max_forward_motion = 0.99
+    mapper_options.init_min_tri_angle = 0.1
+    mapper_options.init_max_reg_trials = 2
+    mapper_options.abs_pose_max_error = 12.0
+    mapper_options.abs_pose_min_num_inliers=30
+    mapper_options.abs_pose_min_inlier_ratio=0.01
+    mapper_options.abs_pose_refine_focal_length=False
+    mapper_options.abs_pose_refine_extra_params=False
+    #mapper_options.ba_local_num_images=6
+    #mapper_options.ba_local_min_tri_angle=0.1
+    #mapper_options.ba_global_ignore_redundant_points3D=False
+    #mapper_options.ba_global_prune_points_min_coverage_gain=0.0
+    #mapper_options.min_focal_length_ratio=0.1
+    #mapper_options.max_focal_length_ratio=10.0
+    #mapper_options.max_extra_param=1.0
+    #mapper_options.filter_max_reproj_error=4.0
+    #mapper_options.filter_min_tri_angle=1.0
+    #mapper_options.max_reg_trials=3
 
     # Try to find good initial pair
     if not options.is_initial_pair_provided():
@@ -73,19 +94,41 @@ def initialize_reconstruction(
             logging.info("Provided pair is insuitable for initialization")
             return pycolmap.IncrementalMapperStatus.BAD_INITIAL_PAIR
     logging.info(f"Initializing with image pair {init_pair}")
-    aaa= mapper.register_initial_image_pair(
+
+
+    mapper_options.init_min_num_inliers = 100
+    mapper_options.init_max_error = 4.0
+    mapper_options.init_max_forward_motion = 0.99
+    mapper_options.init_min_tri_angle = 0.1
+    #mapper_options.init_max_reg_trials = 2
+    #mapper_options.abs_pose_max_error = 12.0
+    #mapper_options.abs_pose_min_num_inliers=30
+    mapper_options.abs_pose_min_inlier_ratio=0.01
+    #mapper_options.abs_pose_refine_focal_length=False
+    #mapper_options.abs_pose_refine_extra_params=False
+    #mapper_options.ba_local_num_images=6
+    #mapper_options.ba_local_min_tri_angle=0.1 # 0.1
+    #mapper_options.ba_global_ignore_redundant_points3D=False
+    #mapper_options.ba_global_prune_points_min_coverage_gain=0.0
+    #mapper_options.min_focal_length_ratio=0.1
+    #mapper_options.max_focal_length_ratio=10.0
+    #mapper_options.max_extra_param=1.0
+    #mapper_options.filter_max_reproj_error=4.0
+    #mapper_options.filter_min_tri_angle=1.0
+    #mapper_options.max_reg_trials=3
+
+
+    mapper.register_initial_image_pair(
         mapper_options, *init_pair, init_cam2_from_cam1
     )
-    mapper_options.abs_pose_max_error = 1000.0
-    mapper_options.ba_local_min_tri_angle = 0.1
-    mapper_options.ba_global_prune_points_min_coverage_gain = 0.0
-    mapper_options.filter_max_reproj_error = 4.0
-    mapper_options.filter_min_tri_angle = 0.1
 
-    print(mapper_options)
-    print(init_cam2_from_cam1)
-    print(aaa)
-    print('DEBUG');quit()
+    for image_id in init_pair:
+        for data_id in reconstruction.images[image_id].frame.data_ids:
+            if data_id.sensor_id.type == pycolmap.SensorType.CAMERA:
+                mapper.triangulate_image(
+                    options.get_triangulation(), data_id.id
+                )
+
     logging.info("Global bundle adjustment")
     # The following is equivalent to: mapper.adjust_global_bundle(...)
     custom_bundle_adjustment.adjust_global_bundle(
@@ -134,7 +177,7 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
         next_images = mapper.find_next_images(mapper_options)
         if sequential:
             next_images = [next_image_id]
-            if reconstruction.is_image_registered(next_image_id):
+            if next_image_id in reconstruction.reg_frame_ids():
                 break
         #print(reconstruction.num_reg_images())
         #print(next_images); print(next_image_id);quit()
@@ -189,9 +232,9 @@ def reconstruct_sub_model(controller, mapper, mapper_options, reconstruction, ne
                     controller.image_path, next_image_id, reconstruction
                 )
             if (
-                options.snapshot_images_freq > 0
-                and reconstruction.num_reg_images()
-                >= options.snapshot_images_freq + snapshot_prev_num_reg_images
+                options.snapshot_frames_freq > 0
+                and reconstruction.num_reg_frames()
+                >= options.snapshot_frames_freq + snapshot_prev_num_reg_images
             ):
                 snapshot_prev_num_reg_images = reconstruction.num_reg_images()
                 write_snapshot(reconstruction, Path(options.snapshot_path))
