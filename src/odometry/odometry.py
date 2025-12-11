@@ -6,6 +6,7 @@ import torch
 import shutil
 import numpy as np
 import kornia.feature as KF
+from kornia.feature import match_nn, match_smnn
 
 from typing import List, Tuple, Dict, Any
 from pyquaternion import Quaternion
@@ -147,6 +148,8 @@ class VisualOdometry:
             raise ValueError("Invalid local features model")
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.lg_matcher = KF.LightGlueMatcher(self.lightglue_model).eval().to(self.device)
+        self.matcher = config['local_features']['matcher']
+        self.ratio_threshold = config['local_features']['ratio_threshold'];print(self.ratio_threshold)
 
         # Initialize database and odometry variables
         self.baseline_old = 0.0
@@ -307,7 +310,10 @@ class VisualOdometry:
             lafs1 = self._laf_from_kps_cached(img1, kps1)
             lafs2 = self._laf_from_kps_cached(img2, kps2)
 
-            dists, idxs = self.lg_matcher(descs1, descs2, lafs1, lafs2, hw1=self.hw_np, hw2=self.hw_np)
+            if self.matcher == "lightglue":
+                dists, idxs = self.lg_matcher(descs1, descs2, lafs1, lafs2, hw1=self.hw_np, hw2=self.hw_np)
+            elif self.matcher == "smnn":
+                dists, idxs = match_smnn(descs1, descs2, th=self.ratio_threshold)
             matches[(img1, img2)] = idxs  # keep on device
             total_matches += len(idxs)
         

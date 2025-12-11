@@ -1,7 +1,7 @@
 general:
     test: False
     log: True
-    frames_range: [50, 100] # -1 means all frames, 50 for tests
+    frames_range: [0, 50] # -1 means all frames, 50 for tests
     save_keyframes: False
 
 
@@ -19,7 +19,8 @@ local_features:
         top_k: 1000
         scores_th: 0.2
         n_limit: 1000
-
+    matcher: lightglue # choices=['lightglue', 'smnn']
+    ratio_threshold: 0.9 # for smnn matcher
 
 mapping:
     cameras: ["cam0", "cam1"] # Both monocular and multiview are supported
