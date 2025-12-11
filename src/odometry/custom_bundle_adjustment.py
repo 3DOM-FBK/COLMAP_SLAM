@@ -12,6 +12,25 @@ from pycolmap import logging
 
 
 def solve_bundle_adjustment(reconstruction, ba_options, ba_config):
+    # To extract covarinaces after BA probably not used images should be deleted from the problem, and probably better to also clean the database from unused observations
+
+    ## Add images
+    #for image_id in reconstruction.reg_image_ids():
+    #    ba_config.add_image(image_id)
+
+    ## As mentioned in covariance_test.cc, we must fix
+    ## the Gauge by always setting at least 3 points as constant
+    #point_idx = 0
+    #for point_id in reconstruction.point3D_ids():
+    #    if point_idx >= 3:
+    #        ba_config.add_variable_point(point_id)
+    #    else:
+    #        ba_config.add_constant_point(point_id)
+    #        point_idx += 1
+    #
+    #ba_config.set_constant_cam_intrinsics(1)
+
+
     bundle_adjuster = pycolmap.create_default_bundle_adjuster(
         ba_options, ba_config, reconstruction
     )
@@ -23,6 +42,21 @@ def solve_bundle_adjustment(reconstruction, ba_options, ba_config):
     # )
     # summary = pyceres.SolverSummary()
     # pyceres.solve(solver_options, bundle_adjuster.problem, summary)
+
+    check = all(getattr(img, "has_pose", False) for img in reconstruction.images.values())
+    
+    if check: 
+        cov_options = pycolmap.BACovarianceOptions()
+        ba_covariance = pycolmap.estimate_ba_covariance(
+            cov_options,
+            reconstruction,
+            bundle_adjuster
+        )
+        for img_id in reconstruction.images:
+            cam_cov = ba_covariance.get_cam_cov_from_world(img_id)
+            print(cam_cov)
+
+
     return summary
 
 
