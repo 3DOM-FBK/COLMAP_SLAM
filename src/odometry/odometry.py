@@ -19,6 +19,7 @@ from src.odometry.custom_incremental_pipeline import reconstruct
 import pycolmap
 from pycolmap import Database, Camera, Image, ListPoint2D, Rigid3d, Rotation3d, TwoViewGeometry, logging
 
+MIN_SOLVER = True
 
 def quat(colmap_quat: np.ndarray) -> Quaternion:
     x, y, z, w = colmap_quat
@@ -59,7 +60,21 @@ class VisualOdometry:
         self.N_reinit = 0
         self.run_BA = False  # control BA only after last stereo image is added
         self.current_status = 'initializing'
-        
+        self.frame_t0 = None
+        self.frame_t1 = None
+
+        self.cam0_pose_t0 = pycolmap.Rigid3d(
+            rotation=pycolmap.Rotation3d(np.array([0, 0, 0, 1])),
+            translation=np.array([[0], [0], [0]])
+        )
+        self.cam1_pose_t0 = pycolmap.Rigid3d(
+            rotation=pycolmap.Rotation3d(np.array([0.0, 0.0, 0.0, 1.0])),
+            translation=np.array([[-0.12], [0.0], [0.0]])
+        )
+
+        self.camera0 = pycolmap.Camera(camera_config['cam0'])
+        self.camera1 = pycolmap.Camera(camera_config['cam1'])
+
         # Enhanced logging data structure
         self.log_data: Dict[str, Any] = {
             'frame_count': 0,
@@ -458,7 +473,6 @@ class VisualOdometry:
             'corrupted_slave_image': False,
             'not_enough_features_on_master': False,
         }
-        
         self.images.append(image)
         self.log_data['frame_count'] += 1
 
@@ -471,6 +485,7 @@ class VisualOdometry:
 
         if len(self.keyframes_names.keys()) == 0:
             # first batch: register all cameras for the first timestamp
+            self.frame_t0 = copy.deepcopy(image)
             status = []
             rig_num_features = []
             rig = {}
@@ -565,6 +580,7 @@ class VisualOdometry:
             return [[image, None, None, None, None, None]], self.log_data
 
         # --- Promote to keyframe on master camera ---
+        self.frame_t1 = image
         self.log_data['current_frame']['is_keyframe'] = True
         self.log_data['keyframe_count'] += 1
         
@@ -583,6 +599,87 @@ class VisualOdometry:
         self.keyframes_names[self.keyframe_name] = self.keyframe_id
         self.keyframes_ids[self.keyframe_id] = self.keyframe_name
         self.keyframes_master_ids.append(self.keyframe_id)
+
+
+        # Min solver
+        if MIN_SOLVER:
+            print('faccio qualcosa')
+            print(self.frame_t0, self.frame_t1)
+
+            kpts_t0_cam0 = self.db.read_keypoints(self.keyframes_names[f"cam0/{self.frame_t0}"])
+            kpts_t0_cam1 = self.db.read_keypoints(self.keyframes_names[f"cam1/{self.frame_t0}"])
+            kpts_t1_cam0 = self.db.read_keypoints(self.keyframes_names[f"cam0/{self.frame_t1}"])
+
+            inlier_matches_t0_cam0_t0_cam1 = self.db.read_two_view_geometry(
+                self.keyframes_names[f"cam0/{self.frame_t0}"],
+                self.keyframes_names[f"cam1/{self.frame_t0}"]
+            ).inlier_matches
+            inlier_matches_t0_cam0_t1_cam0 = self.db.read_two_view_geometry(
+                self.keyframes_names[f"cam0/{self.frame_t0}"],
+                self.keyframes_names[f"cam0/{self.frame_t1}"]
+            ).inlier_matches
+
+            # Stereo triangulation at t0
+            points3D = np.full((kpts_t0_cam0.shape[0], 3), np.nan)
+            for match in inlier_matches_t0_cam0_t0_cam1:
+                idx0 = int(match[0])
+                idx1 = int(match[1])
+                pt0 = kpts_t0_cam0[idx0, :2]
+                pt1 = kpts_t0_cam1[idx1, :2]
+
+                point3D = pycolmap.estimate_triangulation(
+                    points=np.vstack((pt0, pt1)),
+                    cams_from_world=[self.cam0_pose_t0, self.cam1_pose_t0],
+                    cameras=[self.camera0, self.camera1],
+                    #options=triangulation_options,
+                )
+                if point3D is not None:
+                    points3D[idx0, :] = point3D['xyz']
+
+            # PnP at t1
+            points2D = kpts_t1_cam0[inlier_matches_t0_cam0_t1_cam0[:, 1], :2]
+            points3D = points3D[inlier_matches_t0_cam0_t1_cam0[:, 0], :]
+
+            # remove NaNs
+            valid = ~np.isnan(points3D).any(axis=1)
+            points2D = points2D[valid]
+            points3D = points3D[valid]
+
+            if len(points2D) < 6:
+                print("Not enough correspondences for PnP.")
+                quit()
+
+            #pose = pycolmap.estimate_absolute_pose(
+            pose = pycolmap.estimate_and_refine_absolute_pose(
+                points2D=points2D,
+                points3D=points3D,
+                camera=self.camera0,
+                #estimation_options=PnP_options,
+                #refinement_options=...,
+                #return_covarianace=False,
+            )
+
+
+
+            transform_rel = pose['cam_from_world']
+            x, y, z, w = transform_rel.rotation.quat
+            delta_q = Quaternion(np.array([w, x, y, z]))
+            delta_t = -delta_q.inverse.rotation_matrix @ transform_rel.translation.reshape((3,1))
+            self.t_cumulative = self.t_cumulative + self.q_cumulative.inverse.rotate(delta_t)
+            self.q_cumulative = delta_q * self.q_cumulative
+
+
+
+            self.frame_t0 = copy.deepcopy(self.frame_t1)
+
+
+
+
+            #return [[image, self.keyframes_names[curr.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]], self.log_data
+            return [[image, image, delta_t, delta_q, self.t_cumulative, self.q_cumulative]], self.log_data
+
+
+            
 
         # --- Match slave cameras ---
         if self.n_cameras != 1:
@@ -621,6 +718,10 @@ class VisualOdometry:
 
         # --- Orientation / Reconstruction step ---
         reconstruction_start = time.time()
+
+        if 5 < self.keyframe_count < self.sliding_window:
+            self.old_pairs = pairs
+            quit()
 
         if 5 < self.keyframe_count < self.sliding_window:
             self.current_status = 'reconstruction_initialization'
