@@ -1,7 +1,7 @@
 general:
     test: False
     log: True
-    frames_range: [0, 50] # -1 means all frames, 50 for tests
+    frames_range: [0, -1] # -1 means all frames, 50 for tests
     save_keyframes: False
 
 
@@ -15,7 +15,7 @@ local_features:
         do_resize: True
         top_k: 2000
     aliked:
-        model_name: "aliked-n32" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
+        model_name: "aliked-n16" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
         top_k: 1000
         scores_th: 0.2
         n_limit: 1000
