@@ -69,7 +69,7 @@ class VisualOdometry:
         )
         self.cam1_pose_t0 = pycolmap.Rigid3d(
             rotation=pycolmap.Rotation3d(np.array([0.0, 0.0, 0.0, 1.0])),
-            translation=np.array([[-0.12], [0.0], [0.0]])
+            translation=np.array([[-1.40], [0.0], [0.0]])
         )
 
         self.camera0 = pycolmap.Camera(camera_config['cam0'])
@@ -337,6 +337,10 @@ class VisualOdometry:
         if len(pairs) > 0:
             self.log_data['performance']['avg_matches_per_pair'] = total_matches / len(pairs)
         
+        ## Clear GPU cache after matching
+        #if torch.cuda.is_available():
+        #    torch.cuda.empty_cache()
+        
         return matches
 
     @torch.inference_mode()
@@ -375,8 +379,15 @@ class VisualOdometry:
         """Extract and store features, return number of features extracted"""
         extraction_start = time.time()
         
+        ## Clear GPU cache before feature extraction
+        #if torch.cuda.is_available():
+        #    torch.cuda.empty_cache()
+        
         new_kps, new_descs, reading_images_status = self.local_features.extract(name, img)
         if not reading_images_status:
+        #    # Clear cache even on failure
+        #    if torch.cuda.is_available():
+        #        torch.cuda.empty_cache()
             return 0, reading_images_status
         
         # Keep tensors on device to avoid later copies
@@ -400,6 +411,10 @@ class VisualOdometry:
         num_features = sum(len(kps) for kps in new_kps.values())
         self.log_data['total_features_extracted'] += num_features
         self.log_data['current_frame']['num_features'] = num_features
+        
+        # Clear GPU cache after processing
+        #if torch.cuda.is_available():
+        #    torch.cuda.empty_cache()
         
         return num_features, reading_images_status
 
@@ -475,6 +490,8 @@ class VisualOdometry:
         }
         self.images.append(image)
         self.log_data['frame_count'] += 1
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         if reinitialize:
             self.reinitialize()
@@ -601,11 +618,44 @@ class VisualOdometry:
         self.keyframes_master_ids.append(self.keyframe_id)
 
 
+        # --- Match slave cameras ---
+        if self.n_cameras != 1:
+            slave_matching_start = time.time()
+            for c, cam in enumerate(self.cameras):
+                if c == 0:
+                    continue
+                slave_name = f"{cam}/{image}"
+                slave_id = self.keyframe_id + 1 * c
+                self.keyframes_names[slave_name] = slave_id
+                self.keyframes_ids[slave_id] = slave_name
+                camera_id = c + 1
+                num_features, reading_images_status = self._extract_and_store(slave_name, images[c])
+                if not reading_images_status:
+                    self.keypoints[slave_name] = np.empty((0, 2), dtype=np.float32)
+                    self.descriptors[slave_name] = np.empty((0, self.local_features.decriptor_dim), dtype=np.float32)
+                    self.log_data['current_frame']['corrupted_slave_image'] = True
+                self.write_keypoints_to_db(self.db, slave_name, slave_id, camera_id, self.keypoints)
+
+            pairs = self.rig_match_pairs(image)
+            matches = self.match_features(self.keypoints, self.descriptors, pairs)
+            for pair in pairs:
+                kfrm1, kfrm2 = pair
+                inlier_matches = matches[pair].detach().cpu().numpy()
+                self.db.write_two_view_geometry(
+                    self.keyframes_names[kfrm1],
+                    self.keyframes_names[kfrm2],
+                    TwoViewGeometry({"inlier_matches": inlier_matches})
+                )
+            self.db_dirty = True
+            slave_matching_time = time.time() - slave_matching_start
+            self._log_timing('feature_matching_total', slave_matching_time)
+
+        if self.log:
+            print(f"[CSLAM] Matching time: {matching_time:.2f} seconds")
+
+
         # Min solver
         if MIN_SOLVER:
-            print('faccio qualcosa')
-            print(self.frame_t0, self.frame_t1)
-
             kpts_t0_cam0 = self.db.read_keypoints(self.keyframes_names[f"cam0/{self.frame_t0}"])
             kpts_t0_cam1 = self.db.read_keypoints(self.keyframes_names[f"cam1/{self.frame_t0}"])
             kpts_t1_cam0 = self.db.read_keypoints(self.keyframes_names[f"cam0/{self.frame_t1}"])
@@ -681,40 +731,7 @@ class VisualOdometry:
 
             
 
-        # --- Match slave cameras ---
-        if self.n_cameras != 1:
-            slave_matching_start = time.time()
-            for c, cam in enumerate(self.cameras):
-                if c == 0:
-                    continue
-                slave_name = f"{cam}/{image}"
-                slave_id = self.keyframe_id + 1 * c
-                self.keyframes_names[slave_name] = slave_id
-                self.keyframes_ids[slave_id] = slave_name
-                camera_id = c + 1
-                num_features, reading_images_status = self._extract_and_store(slave_name, images[c])
-                if not reading_images_status:
-                    self.keypoints[slave_name] = np.empty((0, 2), dtype=np.float32)
-                    self.descriptors[slave_name] = np.empty((0, self.local_features.decriptor_dim), dtype=np.float32)
-                    self.log_data['current_frame']['corrupted_slave_image'] = True
-                self.write_keypoints_to_db(self.db, slave_name, slave_id, camera_id, self.keypoints)
 
-            pairs = self.rig_match_pairs(image)
-            matches = self.match_features(self.keypoints, self.descriptors, pairs)
-            for pair in pairs:
-                kfrm1, kfrm2 = pair
-                inlier_matches = matches[pair].detach().cpu().numpy()
-                self.db.write_two_view_geometry(
-                    self.keyframes_names[kfrm1],
-                    self.keyframes_names[kfrm2],
-                    TwoViewGeometry({"inlier_matches": inlier_matches})
-                )
-            self.db_dirty = True
-            slave_matching_time = time.time() - slave_matching_start
-            self._log_timing('feature_matching_total', slave_matching_time)
-
-        if self.log:
-            print(f"[CSLAM] Matching time: {matching_time:.2f} seconds")
 
         # --- Orientation / Reconstruction step ---
         reconstruction_start = time.time()
