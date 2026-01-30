@@ -723,6 +723,23 @@ class VisualOdometry:
             self.frame_t0 = copy.deepcopy(self.frame_t1)
 
 
+            # Keep only keypoints for cam0/cam1 at t0 and t1; remove all others.
+            keep_keys = {
+                f"cam0/{self.frame_t0}",
+                f"cam1/{self.frame_t0}",
+                f"cam0/{self.frame_t1}",
+                f"cam1/{self.frame_t1}",
+            }
+
+            for k in list(self.keypoints.keys()):
+                if k not in keep_keys:
+                    self.keypoints.pop(k, None)
+                    # keep other caches consistent
+                    self.descriptors.pop(k, None)
+                    self.lafs_cache.pop(k, None)
+
+            # refresh memory stats after pruning
+            self._update_memory_stats()
 
 
             #return [[image, self.keyframes_names[curr.name], delta_t, delta_q, self.t_cumulative, self.q_cumulative]], self.log_data
@@ -738,7 +755,6 @@ class VisualOdometry:
 
         if 5 < self.keyframe_count < self.sliding_window:
             self.old_pairs = pairs
-            quit()
 
         if 5 < self.keyframe_count < self.sliding_window:
             self.current_status = 'reconstruction_initialization'
@@ -807,6 +823,7 @@ class VisualOdometry:
                     reg_image_ids = reconstruction.reg_image_ids()
                     reconstruction.deregister_image(image_id=min(reg_image_ids))
                     self.log_data['reconstruction_stats']['sliding_window_operations'] += 1
+                    #print(self.keypoints.keys());quit()
 
                 self.log_data['reconstruction_stats']['successful_reconstructions'] += 1
 
