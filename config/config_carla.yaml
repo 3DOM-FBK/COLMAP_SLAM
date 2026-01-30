@@ -6,9 +6,9 @@ general:
 
 
 local_features:
-    features_name: superpoint # choices=['superpoint', 'aliked', 'superpoint_open']
-    resize_width: 1920 # tested with 640, full 1920
-    resize_height: 1080 # tested with 480, full 1080
+    features_name: aliked # choices=['superpoint', 'aliked', 'superpoint_open']
+    resize_width: 960 # tested with 640, full 1920
+    resize_height: 540 # tested with 480, full 1080
     superpoint_open:
         top_k: 2000
     superpoint:
@@ -16,11 +16,11 @@ local_features:
         top_k: 2000
     aliked:
         model_name: "aliked-n16" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
-        top_k: 1000
+        top_k: 500
         scores_th: 0.2
         n_limit: 1000
     matcher: lightglue # choices=['lightglue', 'smnn']
-    ratio_threshold: 0.9 # for smnn matcher
+    ratio_threshold: 0.95 # for smnn matcher
 
 mapping:
     cameras: ["cam0", "cam1"] # Both monocular and multiview are supported
