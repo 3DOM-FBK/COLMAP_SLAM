@@ -7,6 +7,9 @@ from tqdm import tqdm
 from pathlib import Path
 from src.odometry.odometry import VisualOdometry
 
+import cProfile
+import pstats
+
 REINIZIALIZE_AFTER = -1  # Reinitialize after this many frames, -1 disables
 
 def main():
@@ -104,4 +107,18 @@ def main():
     out_images_file_path.write_text("".join(img_lines))
 
 if __name__ == "__main__":
+
+    os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
+    os.environ['CUDA_LAUNCH_BLOCKING'] = '0'
+
+    profiler = cProfile.Profile()
+    profiler.enable()
+
     main()
+
+    profiler.disable()
+    
+    # Print the top 20 most time-consuming functions
+    stats = pstats.Stats(profiler)
+    stats.sort_stats('cumulative')
+    stats.print_stats(20)
