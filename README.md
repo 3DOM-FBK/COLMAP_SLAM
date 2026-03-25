@@ -1,3 +1,7 @@
+# NEWS
+A newer version of the code is released, see the new repo [colmap-odometry](https://github.com/3DOM-FBK/colmap-odometry).
+
+
 # COLMAP_SLAM
 
 https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/af549427-8e87-445d-92f3-1c14e42b5d5a
