@@ -1,4 +1,0 @@
-env/
-__pycache__/
-*.egg-info/
-settings.py
