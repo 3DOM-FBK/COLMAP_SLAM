@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 from pyquaternion import Quaternion
 
+from trajectory_io import write_trajectory
+
 ROOT = Path(__file__).resolve().parent
 COLMAP_ODOMETRY = ROOT / "third_party" / "colmap-odometry"
 
@@ -64,9 +66,9 @@ class OdometryTrajectory:
     def __init__(self):
         self.t = np.zeros(3)   # camera center in world
         self.q = Quaternion()  # world-to-camera rotation
-        self.names, self.ids, self.poses_wc = [], [], []
+        self.names, self.ids, self.poses_wc, self.covariances = [], [], [], []
 
-    def add(self, pose_change) -> bool:
+    def add(self, pose_change, log) -> bool:
         """Add a frame; returns False if the frame was not localized."""
         try:
             image, image_id, delta_t, delta_q, _, _ = pose_change[0]
@@ -83,7 +85,19 @@ class OdometryTrajectory:
         self.names.append(image)
         self.ids.append(image_id)
         self.poses_wc.append(T)
+        self.covariances.append(self._translation_std(log))
         return True
+
+    @staticmethod
+    def _translation_std(log) -> float:
+        """Same `cov` value as upstream trajectory.txt: norm of the translation std devs (999 if unknown)."""
+        try:
+            cov = log["current_frame"]["covariance_matrix_angles_translations"]
+        except (KeyError, TypeError):
+            cov = None
+        if cov is None:
+            return 999
+        return float(np.linalg.norm(np.sqrt(np.diag(cov)[-3:])))
 
     def centers(self) -> np.ndarray:
         return np.array([T[:3, 3] for T in self.poses_wc]).reshape(-1, 3)
@@ -151,7 +165,7 @@ def attach(trajectory: OdometryTrajectory, viewer: TrajectoryViewer = None) -> N
     @functools.wraps(original_run)
     def run(self, *args, **kwargs):
         pose_change, log = original_run(self, *args, **kwargs)
-        if trajectory.add(pose_change) and viewer is not None:
+        if trajectory.add(pose_change, log) and viewer is not None:
             viewer.update(trajectory)
         return pose_change, log
 
@@ -159,7 +173,7 @@ def attach(trajectory: OdometryTrajectory, viewer: TrajectoryViewer = None) -> N
 
 
 def optimize_with_gnss(args, trajectory: OdometryTrajectory, viewer: TrajectoryViewer = None) -> None:
-    from pose_graph import optimize_pose_graph, read_gnss, write_trajectory
+    from pose_graph import optimize_pose_graph, read_gnss
 
     if not trajectory.poses_wc:
         print("Pose graph skipped: no localized frames")
@@ -173,7 +187,7 @@ def optimize_with_gnss(args, trajectory: OdometryTrajectory, viewer: TrajectoryV
         odom_sigma_rot=args.odom_sigma_rot,
         odom_sigma_trans=args.odom_sigma_trans,
     )
-    write_trajectory(args.work_dir, trajectory.names, trajectory.ids, optimized)
+    write_trajectory(args.work_dir, trajectory.names, trajectory.ids, optimized, suffix="_optimized")
     print(f"Optimized trajectory saved to {args.work_dir / 'trajectory_optimized.txt'}")
 
     if viewer is not None:
@@ -217,6 +231,10 @@ def main() -> None:
         "-w", str(args.work_dir.resolve()),
     ]
     runpy.run_path(str(main_script), run_name="__main__")
+
+    # Rewrite upstream trajectory.txt / images.txt with header and orientation
+    write_trajectory(args.work_dir, trajectory.names, trajectory.ids, trajectory.poses_wc,
+                     covariances=trajectory.covariances)
 
     if args.gnss is not None:
         optimize_with_gnss(args, trajectory, viewer)

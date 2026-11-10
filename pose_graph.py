@@ -96,18 +96,3 @@ def optimize_pose_graph(
     )
     return [result.atPose3(X(i)).matrix() for i in range(len(poses))]
 
-
-def write_trajectory(work_dir: Path, names: list, ids: list, poses_wc: list, suffix: str = "_optimized") -> None:
-    """Write trajectory{suffix}.txt (image x y z) and images{suffix}.txt (COLMAP format)."""
-    traj_lines, img_lines = [], []
-    for name, image_id, T in zip(names, ids, poses_wc):
-        c = T[:3, 3]
-        R_cw = T[:3, :3].T
-        q = gtsam.Rot3(R_cw).toQuaternion()
-        t_cw = -R_cw @ c
-        traj_lines.append(f"{name} {c[0]} {c[1]} {c[2]}\n")
-        img_lines.append(
-            f"{image_id} {q.w()} {q.x()} {q.y()} {q.z()} {t_cw[0]} {t_cw[1]} {t_cw[2]} 1 {name}\n\n"
-        )
-    (work_dir / f"trajectory{suffix}.txt").write_text("".join(traj_lines))
-    (work_dir / f"images{suffix}.txt").write_text("".join(img_lines))

@@ -72,7 +72,14 @@ Add `--gui` to plot the estimated trajectory live (top view, X–Z plane) while 
 python cslam.py --gui
 ```
 
-The images folder must contain one subfolder per camera (e.g. `cam0`, `cam1`). The trajectory is saved in the output folder as `trajectory.txt` (world reference system) and `images.txt` (COLMAP format). Run `python cslam.py --help` for all options.
+The images folder must contain one subfolder per camera (e.g. `cam0`, `cam1`). The trajectory is saved in the output folder as `trajectory.txt` and `images.txt` (COLMAP format). `trajectory.txt` has a header and one line per frame, with the camera-to-world pose: the camera center (`tx ty tz`) and the camera orientation in world (`qw qx qy qz`):
+
+```
+# image_name tx ty tz qw qx qy qz cov
+0013.jpg -0.0076 0.0082 0.8767 0.99999 0.00016 0.00012 0.00032 0.0142
+```
+
+`cov` is the norm of the translation standard deviations estimated by colmap-odometry (999 if not available). Run `python cslam.py --help` for all options.
 
 ### GNSS pose-graph optimization
 
@@ -82,8 +89,30 @@ If you pass a GNSS file, the trajectory is refined once colmap-odometry has fini
 python cslam.py --gnss assets/gnss.txt
 ```
 
-The GNSS file has one line per image: `image_name x y z` (any extra columns are ignored). Images are matched to frames by file name. If the GNSS positions are in a different frame from the odometry, the odometry is rigidly aligned to them before optimizing. Default uncertainties (standard deviations) are 0.05 m for GNSS, plus 0.01 rad and 0.05 m for each odometry step. You can change them with `--gnss_sigma`, `--odom_sigma_rot` and `--odom_sigma_trans`. The result is saved as `trajectory_optimized.txt` and `images_optimized.txt`. With `--gui`, the GNSS points and the optimized trajectory are added to the plot.
+The GNSS file has one line per image: `image_name x y z` (any extra columns are ignored). Images are matched to frames by file name. If the GNSS positions are in a different frame from the odometry, the odometry is rigidly aligned to them before optimizing. Default uncertainties (standard deviations) are 0.05 m for GNSS, plus 0.01 rad and 0.05 m for each odometry step. You can change them with `--gnss_sigma`, `--odom_sigma_rot` and `--odom_sigma_trans`. The result is saved as `trajectory_optimized.txt` (same format as `trajectory.txt`, without `cov`) and `images_optimized.txt`. With `--gui`, the GNSS points and the optimized trajectory are added to the plot.
 
 ### Reference
 
-Morelli, L., Ioli, F., Beber, R., Menna, F., Remondino, F. and Vitti, A., 2023. COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY. The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences, 48, pp.317-324.
+```bibtex
+@article{morelli2025deep,
+  title={Deep Learning in Visual Odometry for Autonomous Driving},
+  author={Morelli, Luca and Tryba{\l}a, Pawe{\l} and Razzino, Armando Vittorio and Remondino, Fabio},
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={93--99},
+  year={2025},
+  publisher={Copernicus GmbH}
+}
+```
+
+```bibtex
+@article{morelli2023colmap,
+  title={COLMAP-SLAM: A framework for visual odometry},
+  author={Morelli, Luca and Ioli, Francesco and Beber, Raniero and Menna, Fabio and Remondino, Fabio and Vitti, Alfonso},
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={317--324},
+  year={2023},
+  publisher={Copernicus Publications G{\"o}ttingen, Germany}
+}
+```
