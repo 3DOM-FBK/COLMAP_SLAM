@@ -54,16 +54,22 @@ Install `pytorch` from https://pytorch.org/ to have GPU support.
 
 ## Running the code
 
-Run colmap-odometry on the sample CARLA dataset included in the submodule:
+Run colmap-odometry on the sample CARLA dataset in `assets/`:
 
 ```bash
 python cslam.py
 ```
 
-By default, `cslam.py` uses the sample images, config and calibration files from `third_party/colmap-odometry`, and writes the results to `./output`. Each of these can be overridden:
+By default, `cslam.py` uses the sample images in `assets/` and the files in `config/` and `calibration/`, and writes the results to `./output`. Each of these can be overridden:
 
 ```bash
 python cslam.py -i path/to/images -c path/to/config.yaml -a path/to/calibration.yaml -r path/to/camera_rig.yaml -w path/to/output
+```
+
+Add `--gui` to plot the estimated trajectory live (top view, X–Z plane) while colmap-odometry is running. When processing ends, the window stays open until you close it:
+
+```bash
+python cslam.py --gui
 ```
 
 The images folder must contain one subfolder per camera (e.g. `cam0`, `cam1`). The trajectory is saved in the output folder as `trajectory.txt` (world reference system) and `images.txt` (COLMAP format). Run `python cslam.py --help` for all options.

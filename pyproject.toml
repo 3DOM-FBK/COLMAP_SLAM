@@ -33,6 +33,7 @@ dependencies = [
   "pyceres==2.4",
   "enlighten>=1.14.1",
   "psutil",
+  "matplotlib",
 ]
 
 [project.optional-dependencies]
