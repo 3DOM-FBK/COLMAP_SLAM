@@ -1,17 +1,34 @@
-# COLMAP-SLAM
+# COLMAP-SLAM v1.0
 
-COLMAP_SLAM is a Visual-SLAM based on pycolmap and is mainly intended for the development and testing of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). For now, only the code for visual odometry has been released.
+## Cloning the repository
+This repository includes [colmap-odometry](https://github.com/3DOM-FBK/colmap-odometry) as a git submodule in `third_party/colmap-odometry`. Clone with `--recursive` to fetch it too:
 
-Feel free to join the project!
+```bash
+git clone --recursive https://github.com/lcmrl/cslam.git
+```
 
-Key fratures:
-* completly build on pycolmap, easy to install
-* windowed bundle adjustement
-* monocular camera supported
-* stereo cameras supported
-* build to deal with long sequences
-* deep learning based features support
+If you already cloned without `--recursive`, initialize the submodule with:
 
+```bash
+git submodule update --init --recursive
+```
+
+For compatibility, the submodule is pinned to a specific commit of colmap-odometry:
+
+| Submodule | Commit | Date |
+|-----------|--------|------|
+| colmap-odometry | [`fdcfbce`](https://github.com/3DOM-FBK/colmap-odometry/commit/fdcfbce53e85bcd6e139fa9b252e1ba16eadff98) | 2026-11-10 |
+
+To check that you have the pinned version, run:
+
+```bash
+git submodule status
+# expected: fdcfbce53e85bcd6e139fa9b252e1ba16eadff98 third_party/colmap-odometry
+```
+
+If the hash is different, or has a `+` in front of it, restore the pinned commit with `git submodule update --init --recursive`.
+
+`git submodule update --init --recursive` always checks out this exact commit, so later upstream changes won't affect this repository. Do **not** use `git submodule update --remote` unless you intend to move to a newer, possibly incompatible, version. If you do, check that everything still works before committing the new pointer.
 
 ## Installation
 For installing colmap-slam, we recommend using [uv](https://docs.astral.sh/uv/) for fast and reliable package management:
@@ -37,12 +54,7 @@ Install `pytorch` from https://pytorch.org/ to have GPU support.
 
 ## Running the code
 
-```
-python ./main.py -c ./config/config_euroc.yaml -a ./calibration/calibration_euroc.yaml -r ./calibration/camera_rig_euroc.yaml -w ./path/to/output/folder
-```
-In the working directory `raw_data` is expected a folder called `images` containing a folder for each camera, for instance `cam0` and `cam1`.
 
-The full trajectory is stored in the output folder: `trajectory.txt` in world reference system or `images.txt` following COLMAP conventions.
 
 ### Reference
 
