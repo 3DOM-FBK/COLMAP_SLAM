@@ -18,7 +18,7 @@ local_features:
         top_k: 500
     aliked:
         model_name: "aliked-n16" # choices=['aliked-t16', 'aliked-n16', 'aliked-n16rot', 'aliked-n32'], default="aliked-n16rot"
-        top_k: 500
+        top_k: 1000
         scores_th: 0.2
         n_limit: 1000
     orb:
