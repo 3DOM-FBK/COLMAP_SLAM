@@ -1,4 +1,4 @@
-# COLMAP-SLAM v1.0
+# COLMAP-SLAM v1.0.0
 
 ## Cloning the repository
 This repository includes [colmap-odometry](https://github.com/3DOM-FBK/colmap-odometry) as a git submodule in `third_party/colmap-odometry`. Clone with `--recursive` to fetch it too:
