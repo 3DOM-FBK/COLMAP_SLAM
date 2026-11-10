@@ -1,0 +1,4 @@
+cslam-v2 e' il branch piu' aggiornato su cui lavorare
+cslam-v2-gluefactory ha un primo accenno di integrazione di lightglue da gluefactory
+cslam-v2-covariance e' divergente ormai rispetto a cslam-v2 e c'erano i primi passi per passare a pycolmap 3.13
+gli altri son tutti vecchi
