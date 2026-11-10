@@ -1,0 +1,4 @@
+[submodule "third_party/colmap-odometry"]
+	path = third_party/colmap-odometry
+	url = https://github.com/3DOM-FBK/colmap-odometry.git
+	update = checkout

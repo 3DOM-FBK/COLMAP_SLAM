@@ -1,0 +1,7 @@
+cam0:
+  rotation: [0.0, 0.0, 0.0, 1.0]
+  translation: [0.0, 0.0, 0.0]
+
+cam1:
+  rotation: [0.0, 0.0, 0.0, 1.0]
+  translation: [-1.40, 0.0, 0.0]

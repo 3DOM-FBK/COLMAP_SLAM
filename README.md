@@ -1,133 +1,118 @@
-# NEWS
-A newer version of the code is released, see the new repo [colmap-odometry](https://github.com/3DOM-FBK/colmap-odometry).
+# COLMAP-SLAM v1.0
 
-
-# COLMAP_SLAM
-
-https://github.com/3DOM-FBK/COLMAP_SLAM/assets/93863149/af549427-8e87-445d-92f3-1c14e42b5d5a
-
-COLMAP_SLAM is a Visual-SLAM based on COLMAP API and is mainly intended for the development and testing of new SLAM features (deep-learning based tie points and matching, keyframe selection, global optimization, etc). The repository relys on Kornia (https://github.com/kornia/kornia) for matching, and some detectors and descriptors.
-
-Monocular and multicamera scenario are supported. We are joining an other repository with other features (loop-closure detection, GNSS and IMU aiding). We are optimizing the code for very long sequences. If interested in the project please contact us, you are free to join.
-
-Note the repository is an adaptation of COLMAP to work in real-time, for code and license please refer to [COLMAP](https://github.com/colmap/colmap).
-
-| Local Feature      | Supported | Matcher     | Supported |
-|----------          |---------- |----------   |---------- |
-| RootSIFT           | yes       | Brute Force | yes       |
-| ORB                | yes       | SuperGlue   | yes       |
-| Key.Net + HardNet8 | yes       | LightGlue   | yes       |
-| ALIKE              | yes       | LoFTR       | not yet   |
-| ALIKED             | not yet   | ADALAM      | yes       |
-| SuperPoint         | yes       | ...         |           |
-| DISK               | yes       | ...         |           |
-| DeDoDe             | not yet   | ...         |           |
-| DKM                | not yet   | ...         |           |
-
-
-## EuRoC
-
-Download a dataset from [https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets](https://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) and unzip it in the `raw_data` folder. For instance, for Machine Hall 01 use only cam0.
-
-In linux, you can use the following commands:
+## Cloning the repository
+This repository includes [colmap-odometry](https://github.com/3DOM-FBK/colmap-odometry) as a git submodule in `third_party/colmap-odometry`. Clone with `--recursive` to fetch it too:
 
 ```bash
-mkdir raw_data
-wget http://robotics.ethz.ch/\~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip -P raw_data
-unzip -q raw_data/MH_01_easy.zip -d raw_data/MH_01_easy
+git clone --recursive https://github.com/lcmrl/cslam.git
 ```
 
-## Install and run
-### Install in Conda Environment
-
-To install COLMAP_SLAM in a conda environment (Linux, Windows, MacOS)
+If you already cloned without `--recursive`, initialize the submodule with:
 
 ```bash
-conda create -n colmap_slam python=3.9.17
-conda activate colmap_slam
-```
-Install pytorch. See [https://pytorch.org/get-started/locally/#linux-pip](https://pytorch.org/get-started/locally/#linux-pip)
-```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+git submodule update --init --recursive
 ```
 
-### Install COLMAP
-If you have COLMAP installed yet on your PC, remeber to set the path to the COLMAP executable in `config.ini`, e.g., for linux:
+For compatibility, the submodule is pinned to a specific commit of colmap-odometry:
 
-```bash
-COLMAP_EXE_DIR = /usr/local/bin/
-```
-For the installation of COLMAP see the official documentation https://colmap.github.io/install.html
-You can find some example in the following section Usage Examples
+| Submodule | Commit | Date |
+|-----------|--------|------|
+| colmap-odometry | [`fdcfbce`](https://github.com/3DOM-FBK/colmap-odometry/commit/fdcfbce53e85bcd6e139fa9b252e1ba16eadff98) | 2026-11-10 |
 
-### Run COLMAP_SLAM
-
-Change `config.ini` according to your needs and run
+To check that you have the pinned version, run:
 
 ```bash
-python3 main.py
+git submodule status
+# expected: fdcfbce53e85bcd6e139fa9b252e1ba16eadff98 third_party/colmap-odometry
 ```
 
-### Options
+If the hash is different, or has a `+` in front of it, restore the pinned commit with `git submodule update --init --recursive`.
 
-There are some options to change in `config.ini` to run COLMAP_SLAM:
-If you are simulating a real time process you have to set
+`git submodule update --init --recursive` always checks out this exact commit, so later upstream changes won't affect this repository. Do **not** use `git submodule update --remote` unless you intend to move to a newer, possibly incompatible, version. If you do, check that everything still works before committing the new pointer.
 
-```USE_SERVER = False
-SIMULATOR_IMG_DIR = path/to/frame/folder # for instance "./raw_data/MH_01_easy/mav0/cam0/data"
-STEP = 5 # If you have high frame rate you can skip some images to increase speed
-SIMULATOR_SLEEP_TIME = 0.25 # Time to wait to copy next image
-IMG_FORMAT = jpg
+## Installation
+For installing colmap-slam, we recommend using [uv](https://docs.astral.sh/uv/) for fast and reliable package management:
 
-COLMAP_EXE_DIR = /usr/local/bin/
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create and activate a virtual environment
+uv venv --python 3.10
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-This should be enough to run with default options. All the options related to the real time processing can be found in config.ini.
-The options related to COLMAP APIs are in the lib folder with format .ini
+Then, you can install colmap-slam using uv:
 
+```bash
+uv pip install -e .
+```
 
-### TODO
+This command will install the package in editable mode, allowing you to modify the source code and see changes immediately without needing to reinstall. If you want to use colmap-slam as a non-editable library, you can also install it without the `-e` flag.
 
-- [x] Add full compatibility to Kornia local features
-- [x] Join multi camera code
-- [ ] Join loop-closure detection
-- [ ] Join GNSS positioning
-- [ ] Join IMU aiding
-- [ ] Pycolmap
-- [ ] Optimize the code for long sequences
-- [ ] Add option to resize too big images
-- [ ] Add pose graph optimization
+Install `pytorch` from https://pytorch.org/ to have GPU support.
+
+## Running the code
+
+Run colmap-odometry on the sample CARLA dataset in `assets/`:
+
+```bash
+python cslam.py
+```
+
+By default, `cslam.py` uses the sample images in `assets/` and the files in `config/` and `calibration/`, and writes the results to `./output`. Each of these can be overridden:
+
+```bash
+python cslam.py -i path/to/images -c path/to/config.yaml -a path/to/calibration.yaml -r path/to/camera_rig.yaml -w path/to/output
+```
+
+Add `--gui` to plot the estimated trajectory live (top view, X–Z plane) while colmap-odometry is running. When processing ends, the window stays open until you close it:
+
+```bash
+python cslam.py --gui
+```
+
+The images folder must contain one subfolder per camera (e.g. `cam0`, `cam1`). The trajectory is saved in the output folder as `trajectory.txt` and `images.txt` (COLMAP format). `trajectory.txt` has a header and one line per frame, with the camera-to-world pose: the camera center (`tx ty tz`) and the camera orientation in world (`qw qx qy qz`):
+
+```
+# image_name tx ty tz qw qx qy qz cov
+0013.jpg -0.0076 0.0082 0.8767 0.99999 0.00016 0.00012 0.00032 0.0142
+```
+
+`cov` is the norm of the translation standard deviations estimated by colmap-odometry (999 if not available). Run `python cslam.py --help` for all options.
+
+### GNSS pose-graph optimization
+
+If you pass a GNSS file, the trajectory is refined once colmap-odometry has finished. This uses a [gtsam](https://gtsam.org/) pose graph built from the colmap-odometry relative poses and the GNSS positions:
+
+```bash
+python cslam.py --gnss assets/gnss.txt
+```
+
+The GNSS file has one line per image: `image_name x y z` (any extra columns are ignored). Images are matched to frames by file name. If the GNSS positions are in a different frame from the odometry, the odometry is rigidly aligned to them before optimizing. Default uncertainties (standard deviations) are 0.05 m for GNSS, plus 0.01 rad and 0.05 m for each odometry step. You can change them with `--gnss_sigma`, `--odom_sigma_rot` and `--odom_sigma_trans`. The result is saved as `trajectory_optimized.txt` (same format as `trajectory.txt`, without `cov`) and `images_optimized.txt`. With `--gui`, the GNSS points and the optimized trajectory are added to the plot.
 
 ### Reference
 
-Morelli, L., Ioli, F., Beber, R., Menna, F., Remondino, F. and Vitti, A., 2023. COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY. The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences, 48, pp.317-324.
+```bibtex
+@article{morelli2025deep,
+  title={Deep Learning in Visual Odometry for Autonomous Driving},
+  author={Morelli, Luca and Tryba{\l}a, Pawe{\l} and Razzino, Armando Vittorio and Remondino, Fabio},
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={93--99},
+  year={2025},
+  publisher={Copernicus GmbH}
+}
+```
 
-### Acknowledgements
-
-For keyframe selection and display: ALIKE (https://github.com/Shiaoming/ALIKE)
-For detectors and matching: Kornia (https://github.com/kornia/kornia)
-
-### License
-
-MIT License
-
-Copyright (c) 2023 3DOM-FBK
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in alls
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+```bibtex
+@article{morelli2023colmap,
+  title={COLMAP-SLAM: A framework for visual odometry},
+  author={Morelli, Luca and Ioli, Francesco and Beber, Raniero and Menna, Fabio and Remondino, Fabio and Vitti, Alfonso},
+  journal={The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences},
+  volume={48},
+  pages={317--324},
+  year={2023},
+  publisher={Copernicus Publications G{\"o}ttingen, Germany}
+}
+```
