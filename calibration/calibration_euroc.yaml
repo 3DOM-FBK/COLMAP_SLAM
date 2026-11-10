@@ -1,0 +1,13 @@
+# Width and height must be the same for each camera
+
+cam0:
+  model: OPENCV
+  width: 752
+  height: 480
+  params: [458.654000, 457.296000, 367.215000, 248.375000, -0.283408, 0.073959, 0.000194, 0.000018]
+
+cam1:
+  model: OPENCV
+  width: 752
+  height: 480
+  params: [458.654000, 457.296000, 367.215000, 248.375000, -0.283408, 0.073959, 0.000194, 0.000018]
