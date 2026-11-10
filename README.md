@@ -74,6 +74,16 @@ python cslam.py --gui
 
 The images folder must contain one subfolder per camera (e.g. `cam0`, `cam1`). The trajectory is saved in the output folder as `trajectory.txt` (world reference system) and `images.txt` (COLMAP format). Run `python cslam.py --help` for all options.
 
+### GNSS pose-graph optimization
+
+If you pass a GNSS file, the trajectory is refined once colmap-odometry has finished. This uses a [gtsam](https://gtsam.org/) pose graph built from the colmap-odometry relative poses and the GNSS positions:
+
+```bash
+python cslam.py --gnss assets/gnss.txt
+```
+
+The GNSS file has one line per image: `image_name x y z` (any extra columns are ignored). Images are matched to frames by file name. If the GNSS positions are in a different frame from the odometry, the odometry is rigidly aligned to them before optimizing. Default uncertainties (standard deviations) are 0.05 m for GNSS, plus 0.01 rad and 0.05 m for each odometry step. You can change them with `--gnss_sigma`, `--odom_sigma_rot` and `--odom_sigma_trans`. The result is saved as `trajectory_optimized.txt` and `images_optimized.txt`. With `--gui`, the GNSS points and the optimized trajectory are added to the plot.
+
 ### Reference
 
 Morelli, L., Ioli, F., Beber, R., Menna, F., Remondino, F. and Vitti, A., 2023. COLMAP-SLAM: A FRAMEWORK FOR VISUAL ODOMETRY. The International Archives of the Photogrammetry, Remote Sensing and Spatial Information Sciences, 48, pp.317-324.

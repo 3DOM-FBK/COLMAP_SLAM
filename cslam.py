@@ -3,6 +3,7 @@
 Example:
     python cslam.py                      # runs on the sample CARLA dataset
     python cslam.py --gui                # same, with a live trajectory plot
+    python cslam.py --gnss assets/gnss.txt   # + pose-graph optimization with GNSS
     python cslam.py -i path/to/images -w path/to/output
 """
 
@@ -11,6 +12,9 @@ import functools
 import runpy
 import sys
 from pathlib import Path
+
+import numpy as np
+from pyquaternion import Quaternion
 
 ROOT = Path(__file__).resolve().parent
 COLMAP_ODOMETRY = ROOT / "third_party" / "colmap-odometry"
@@ -39,30 +43,62 @@ def parse_args() -> argparse.Namespace:
                         help="Output folder (trajectory.txt, images.txt, database.db)")
     parser.add_argument("--gui", action="store_true",
                         help="Show the estimated trajectory live while running")
+    parser.add_argument("-g", "--gnss", type=Path, default=None,
+                        help="GNSS file (lines: image_name x y z). If given, the trajectory "
+                             "is refined at the end with a gtsam pose-graph optimization")
+    parser.add_argument("--gnss_sigma", type=float, default=0.05,
+                        help="GNSS position standard deviation [m]")
+    parser.add_argument("--odom_sigma_rot", type=float, default=0.01,
+                        help="Odometry relative rotation standard deviation [rad]")
+    parser.add_argument("--odom_sigma_trans", type=float, default=0.05,
+                        help="Odometry relative translation standard deviation [m]")
     return parser.parse_args()
 
 
-class TrajectoryViewer:
-    """Minimal live top-down (X-Z) plot of the camera trajectory.
+class OdometryTrajectory:
+    """Chains the relative poses returned by VisualOdometry.run() into camera-to-world poses.
 
-    Poses are accumulated from the relative motions returned by
-    VisualOdometry.run(), exactly as colmap-odometry's main.py does when it
-    writes trajectory.txt.
+    Uses the same accumulation as colmap-odometry's main.py when it writes trajectory.txt.
     """
 
     def __init__(self):
+        self.t = np.zeros(3)   # camera center in world
+        self.q = Quaternion()  # world-to-camera rotation
+        self.names, self.ids, self.poses_wc = [], [], []
+
+    def add(self, pose_change) -> bool:
+        """Add a frame; returns False if the frame was not localized."""
+        try:
+            image, image_id, delta_t, delta_q, _, _ = pose_change[0]
+        except (IndexError, TypeError, ValueError):
+            return False
+        if delta_t is None or delta_q is None:
+            return False
+
+        self.t = self.t + self.q.inverse.rotate(delta_t)
+        self.q = delta_q * self.q
+        T = np.eye(4)
+        T[:3, :3] = self.q.rotation_matrix.T
+        T[:3, 3] = self.t
+        self.names.append(image)
+        self.ids.append(image_id)
+        self.poses_wc.append(T)
+        return True
+
+    def centers(self) -> np.ndarray:
+        return np.array([T[:3, 3] for T in self.poses_wc]).reshape(-1, 3)
+
+
+class TrajectoryViewer:
+    """Minimal live top-down (X-Z) plot of the camera trajectory."""
+
+    def __init__(self):
         import matplotlib.pyplot as plt
-        import numpy as np
-        from pyquaternion import Quaternion
 
         self.plt = plt
-        self.t = np.zeros(3)
-        self.q = Quaternion()
-        self.xs, self.zs = [], []
-
         plt.ion()
         self.fig, self.ax = plt.subplots(num="cslam - trajectory")
-        (self.line,) = self.ax.plot([], [], "-", color="tab:blue", lw=1.5, label="trajectory")
+        (self.line,) = self.ax.plot([], [], "-", color="tab:blue", lw=1.5, label="odometry")
         (self.head,) = self.ax.plot([], [], "o", color="tab:red", label="current pose")
         self.ax.set_xlabel("X [m]")
         self.ax.set_ylabel("Z [m]")
@@ -71,39 +107,43 @@ class TrajectoryViewer:
         self.ax.legend(loc="upper left")
         plt.show(block=False)
 
-    def update(self, pose_change) -> None:
-        try:
-            image, _, delta_t, delta_q, _, _ = pose_change[0]
-        except (IndexError, TypeError, ValueError):
-            return
-        if delta_t is None or delta_q is None:  # frame not localized
-            return
+    def _is_open(self) -> bool:
+        return self.plt.fignum_exists(self.fig.number)
 
-        self.t = self.t + self.q.inverse.rotate(delta_t)
-        self.q = delta_q * self.q
-        self.xs.append(self.t[0])
-        self.zs.append(self.t[2])
-
-        if not self.plt.fignum_exists(self.fig.number):  # window closed by user
-            return
-        self.line.set_data(self.xs, self.zs)
-        self.head.set_data([self.xs[-1]], [self.zs[-1]])
+    def _redraw(self, title: str) -> None:
         self.ax.relim()
         self.ax.autoscale_view()
-        self.ax.set_title(f"{image}  -  {len(self.xs)} poses")
+        self.ax.set_title(title)
         self.fig.canvas.draw_idle()
         self.fig.canvas.flush_events()
 
+    def update(self, trajectory: OdometryTrajectory) -> None:
+        if not self._is_open():  # window closed by user
+            return
+        c = trajectory.centers()
+        self.line.set_data(c[:, 0], c[:, 2])
+        self.head.set_data([c[-1, 0]], [c[-1, 2]])
+        self._redraw(f"{trajectory.names[-1]}  -  {len(c)} poses")
+
+    def show_optimized(self, optimized: np.ndarray, gnss: np.ndarray) -> None:
+        if not self._is_open():
+            return
+        self.ax.plot(gnss[:, 0], gnss[:, 2], "x", color="tab:green", label="GNSS")
+        self.ax.plot(optimized[:, 0], optimized[:, 2], "-", color="tab:orange", lw=1.5,
+                     label="optimized")
+        self.ax.legend(loc="upper left")
+        self._redraw(self.ax.get_title())
+
     def keep_open(self) -> None:
         """Block until the user closes the window."""
-        if self.plt.fignum_exists(self.fig.number):
-            self.ax.set_title(f"Finished  -  {len(self.xs)} poses")
+        if self._is_open():
+            self.ax.set_title(f"Finished  -  {len(self.line.get_xdata())} poses")
             self.plt.ioff()
             self.plt.show()
 
 
-def attach_viewer(viewer: TrajectoryViewer) -> None:
-    """Wrap VisualOdometry.run so that each estimated pose is sent to the viewer."""
+def attach(trajectory: OdometryTrajectory, viewer: TrajectoryViewer = None) -> None:
+    """Wrap VisualOdometry.run to record each estimated pose (and show it in the viewer)."""
     from src.odometry.odometry import VisualOdometry
 
     original_run = VisualOdometry.run
@@ -111,10 +151,36 @@ def attach_viewer(viewer: TrajectoryViewer) -> None:
     @functools.wraps(original_run)
     def run(self, *args, **kwargs):
         pose_change, log = original_run(self, *args, **kwargs)
-        viewer.update(pose_change)
+        if trajectory.add(pose_change) and viewer is not None:
+            viewer.update(trajectory)
         return pose_change, log
 
     VisualOdometry.run = run
+
+
+def optimize_with_gnss(args, trajectory: OdometryTrajectory, viewer: TrajectoryViewer = None) -> None:
+    from pose_graph import optimize_pose_graph, read_gnss, write_trajectory
+
+    if not trajectory.poses_wc:
+        print("Pose graph skipped: no localized frames")
+        return
+    gnss = read_gnss(args.gnss)
+    optimized = optimize_pose_graph(
+        trajectory.names,
+        trajectory.poses_wc,
+        gnss,
+        gnss_sigma=args.gnss_sigma,
+        odom_sigma_rot=args.odom_sigma_rot,
+        odom_sigma_trans=args.odom_sigma_trans,
+    )
+    write_trajectory(args.work_dir, trajectory.names, trajectory.ids, optimized)
+    print(f"Optimized trajectory saved to {args.work_dir / 'trajectory_optimized.txt'}")
+
+    if viewer is not None:
+        viewer.show_optimized(
+            np.array([T[:3, 3] for T in optimized]),
+            np.array([gnss[n] for n in trajectory.names if n in gnss]).reshape(-1, 3),
+        )
 
 
 def main() -> None:
@@ -127,9 +193,9 @@ def main() -> None:
             "Run: git submodule update --init --recursive"
         )
 
-    for name in ("images", "config", "camera", "rig"):
+    for name in ("images", "config", "camera", "rig", "gnss"):
         path = getattr(args, name)
-        if not path.exists():
+        if path is not None and not path.exists():
             sys.exit(f"--{name} not found: {path}")
 
     args.work_dir.mkdir(parents=True, exist_ok=True)
@@ -137,10 +203,9 @@ def main() -> None:
     # colmap-odometry imports its modules as `src.odometry...`
     sys.path.insert(0, str(COLMAP_ODOMETRY))
 
-    viewer = None
-    if args.gui:
-        viewer = TrajectoryViewer()
-        attach_viewer(viewer)
+    trajectory = OdometryTrajectory()
+    viewer = TrajectoryViewer() if args.gui else None
+    attach(trajectory, viewer)
 
     # Forward the arguments to the upstream main.py and run it as a script
     sys.argv = [
@@ -152,6 +217,9 @@ def main() -> None:
         "-w", str(args.work_dir.resolve()),
     ]
     runpy.run_path(str(main_script), run_name="__main__")
+
+    if args.gnss is not None:
+        optimize_with_gnss(args, trajectory, viewer)
 
     if viewer is not None:
         viewer.keep_open()
